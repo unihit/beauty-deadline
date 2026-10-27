@@ -1,8 +1,303 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#345c49"><meta name="description" content="소중한 화장품, 좋은 때에 끝까지. 나만의 화장품 사용기한 관리"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon-192.png"><link rel="stylesheet" href="styles.css"><title>뷰티기한 · 나의 화장대</title></head><body>
-<header><a class="logo" href="./"><img src="icon.svg" alt="">뷰티기한<span>BEAUTY, IN TIME</span></a><button id="backupOpen" class="quiet">백업 & 안내</button></header>
-<main><section class="intro"><div class="eyebrow">MY BEAUTY SHELF <span>개인용 테스트 버전</span></div><h1>소중한 화장품,<br>좋은 때에 끝까지.</h1><p>작은 기록으로 시작하는, 나를 위한 뷰티 습관.</p><div class="intro-actions"><button id="add" class="primary">＋ 제품 등록</button><button id="sample" class="quiet">샘플로 둘러보기 ↗</button></div><div class="shelf-art" aria-hidden="true"><i class="bottle one"></i><i class="bottle two"></i><i class="jar"></i><span>make room for<br>your everyday ritual.</span></div></section>
-<section class="stats" aria-label="제품 현황"><button data-quick="active"><strong id="total">0</strong><span>관리 중인 제품</span></button><button data-quick="expired"><strong id="expired">0</strong><span><i class="dot red"></i>기한 경과</span></button><button data-quick="soon"><strong id="soon">0</strong><span><i class="dot amber"></i>30일 이내</span></button><button data-quick="unknown"><strong id="unknown">0</strong><span><i class="dot gray"></i>날짜 확인 필요</span></button></section>
-<section class="collection"><div class="section-heading"><div><div class="eyebrow">A LITTLE CARE, EVERY DAY</div><h2>내 화장대 <small id="count">0개</small></h2></div><span class="muted">먼저 써야 할 제품부터 살펴보세요</span></div><div class="tools"><label class="search"><span>⌕</span><input id="search" type="search" placeholder="제품명, 브랜드, 메모 검색" aria-label="제품 검색"></label><select id="categoryFilter" aria-label="카테고리 필터"><option value="">모든 카테고리</option></select><select id="statusFilter" aria-label="상태 필터"><option value="">모든 상태</option></select><select id="sort" aria-label="정렬"><option value="due">기한 임박순</option><option value="new">최근 등록순</option><option value="name">이름순</option></select></div><div id="quickBar" hidden><span id="quickText"></span><button id="clearQuick" class="quiet">필터 해제 ×</button></div><div id="cards" class="cards"></div></section>
-<aside class="storage-note"><span>◈</span><p><b>나의 기록은 이 브라우저에만.</b><br>사진과 제품 정보는 현재 기기에 저장됩니다. 브라우저 데이터 삭제 전, JSON 백업을 꼭 보관하세요.</p><button id="backupInline" class="quiet">백업하기 ↗</button></aside><footer><span>뷰티기한</span><span>조금 더 다정한, 나의 화장대 관리.</span></footer></main>
-<dialog id="editor"><form id="productForm"><div class="dialog-head"><div><div class="eyebrow">MY BEAUTY RECORD</div><h2 id="editorTitle">제품 등록</h2></div><button type="button" class="close" data-close="editor" aria-label="닫기">×</button></div><p class="muted">제품 하나가 아닌, 용기 하나씩 기록해요. 날짜는 나중에 채워도 괜찮아요.</p><div class="photo-block"><img id="photoPreview" alt="선택한 제품 사진" hidden><label class="upload">＋ 제품 사진 선택<input id="photo" type="file" accept="image/*"></label><button type="button" id="removePhoto" class="quiet">사진 지우기</button><button type="button" id="ocr" class="secondary">사진에서 글자 읽기</button></div><p class="hint">OCR은 기기 안에서 처리됩니다. 최초 사용 시 엔진과 한국어·영어 모델 다운로드에 인터넷이 필요해요. 사진은 서버로 전송하지 않습니다.</p><section id="ocrPanel" hidden><p id="ocrStatus" role="status"></p><progress id="ocrProgress" max="100" value="0"></progress><label>인식 원문<textarea id="ocrText" rows="4"></textarea></label><button type="button" id="parseOcr" class="quiet">원문에서 후보 다시 찾기</button><div id="dateCandidates"></div><label>제품명 후보 (확인·수정 후 적용)<input id="ocrName" maxlength="120"></label><button type="button" id="applyName" class="secondary">제품명 적용</button><p class="hint">제조일·로트번호는 사용기한이 아닙니다. 후보는 자동 적용하지 않아요. 흐림, 곡면, 각인, 한글·두 자리 연도는 인식되지 않을 수 있어요.</p></section><div class="form-grid"><label class="wide">제품명 <em>필수</em><input name="name" required maxlength="120" placeholder="예: 데일리 수분 크림"></label><label>브랜드<input name="brand" maxlength="120" placeholder="브랜드 이름"></label><label>카테고리<select name="category"></select></label><label>상태<select name="status"></select></label><label>표시된 사용기한<input type="date" name="expiry" min="1900-01-01" max="9999-12-31"><small>EXP·사용기한만 입력, 제조일 제외</small></label><label>개봉일<input type="date" name="opened" min="1900-01-01" max="9999-12-31"></label><label>개봉 후 사용기간 (개월)<input type="number" name="months" min="1" max="120" step="1" list="periods" placeholder="모르면 비워 두세요"><datalist id="periods"><option value="3">3M</option><option value="6">6M</option><option value="12">12M</option><option value="24">24M</option></datalist></label><label class="wide">메모<textarea name="memo" rows="3" maxlength="10000" placeholder="구매일, 사용감, 기억해 둘 내용"></textarea></label></div><div id="calculation" class="calculation" aria-live="polite"></div><p id="formError" class="error" role="alert"></p><div class="dialog-actions"><button type="button" id="delete" class="danger" hidden>제품 삭제</button><button type="button" data-close="editor" class="quiet">취소</button><button type="submit" class="primary" id="save">저장하기</button></div></form></dialog>
-<dialog id="backupDialog"><div class="dialog-head"><h2>기록을 안전하게</h2><button class="close" data-close="backupDialog" aria-label="닫기">×</button></div><p>이 앱은 로그인·서버 저장·기기 간 동기화 없이, 현재 브라우저의 IndexedDB에 저장합니다. 다른 브라우저나 기기에서는 별도의 화장대가 열려요.</p><button id="export" class="primary">JSON 백업 다운로드</button><p class="hint">사진도 포함됩니다. 백업 파일은 개인 정보이므로 안전하게 보관하세요.</p><hr><h3>백업 복원</h3><p>같은 ID의 용기는 덮어쓰고, 다른 제품은 추가합니다. 현재 제품을 삭제하지 않습니다. 먼저 현재 기록을 백업해 주세요.</p><input id="importFile" type="file" accept=".json,application/json" aria-label="백업 JSON 선택"><div id="restorePreview" hidden><p id="restoreInfo"></p><button id="restore" class="secondary">확인한 백업 복원하기</button></div><p id="backupStatus" role="status"></p><hr><h3>앱처럼 사용하기</h3><p id="installHelp">HTTPS 주소에서 열고 Android는 브라우저 메뉴의 ‘앱 설치’, iPhone은 Safari 공유 메뉴의 ‘홈 화면에 추가’를 이용하세요.</p><button id="install" class="secondary" hidden>홈 화면에 설치</button><p class="hint">첫 접속과 OCR 모델 다운로드에는 인터넷이 필요합니다. 기본 화면·제품 관리·백업은 앱 파일이 캐시된 후 오프라인에서도 사용할 수 있어요. OCR 모델의 오프라인 재사용은 브라우저 캐시에 따라 달라집니다.</p><p class="hint">앱 종료 중 푸시 알림은 제공하지 않습니다. 기한 분류는 앱을 열거나 다시 돌아올 때 갱신합니다. 관리 기준일은 기록을 돕는 기준이며 제품의 안전성을 판정하지 않습니다.</p></dialog><dialog id="confirmDialog"><h2 id="confirmTitle">확인</h2><p id="confirmBody"></p><div class="dialog-actions"><button id="confirmCancel" class="quiet">취소</button><button id="confirmYes" class="primary">확인</button></div></dialog><div id="toast" role="status"></div><script type="module" src="app.js"></script></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#F7F4EE">
+<meta name="description" content="소중한 화장품, 좋은 때에 끝까지. 나만의 화장품 사용기한 관리">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Noto+Sans+KR:wght@300;400;500;600&family=Noto+Serif+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<title>뷰티기한 · 나의 화장대</title>
+</head>
+<body>
+<a class="skip" href="#collection">본문으로 건너뛰기</a>
+
+<header class="site-head">
+  <div class="head-inner">
+    <a class="logo" href="./" aria-label="뷰티기한 홈">
+      <img src="icon.svg" alt="">
+      <span class="wordmark">뷰티기한<span class="wordmark-sub">BEAUTY, IN TIME</span></span>
+    </a>
+    <div class="head-right">
+      <p class="today"><span>TODAY</span><b id="todayLabel">—</b></p>
+      <button id="backupOpen" class="ghost-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h11A2.5 2.5 0 0 1 20 8.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8.5Z"/><path d="M4 9h16M9.5 13.5h5"/></svg>
+        백업 &amp; 안내
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow"><span class="eyebrow-dot"></span>MY BEAUTY SHELF <span class="tag">개인용 테스트 버전</span></p>
+      <h1>소중한 화장품,<br><span class="accent">좋은 때에</span> 끝까지.</h1>
+      <p class="hero-sub">작은 기록으로 시작하는, 나를 위한 뷰티 습관. 먼저 써야 할 순서를 조용히 알려드려요.</p>
+      <div class="hero-actions">
+        <button id="add" class="primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          제품 등록
+        </button>
+        <button id="sample" class="quiet">샘플로 둘러보기 <span aria-hidden="true">↗</span></button>
+      </div>
+      <ul class="hero-points" aria-label="앱 특징">
+        <li>기기 안에만 저장</li>
+        <li>사진으로 라벨 인식</li>
+        <li>개봉 후 기한 자동 계산</li>
+      </ul>
+    </div>
+
+    <div class="hero-art">
+      <div class="art-frame">
+        <svg viewBox="0 0 560 500" role="img" aria-label="화장품 병과 크림 용기 일러스트">
+          <defs>
+            <linearGradient id="gAmber" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#E7D9B8"/><stop offset=".45" stop-color="#F3EAD3"/><stop offset="1" stop-color="#CFBE99"/>
+            </linearGradient>
+            <linearGradient id="gFrost" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#B7C4A9"/><stop offset=".38" stop-color="#DCE5D0"/><stop offset="1" stop-color="#A8B79A"/>
+            </linearGradient>
+            <linearGradient id="gJar" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#FBF6E9"/><stop offset="1" stop-color="#E4DCC4"/>
+            </linearGradient>
+            <linearGradient id="gShelf" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#CBD5C0"/><stop offset="1" stop-color="#B9C6AC"/>
+            </linearGradient>
+            <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+              <feDropShadow dx="0" dy="16" stdDeviation="12" flood-color="#2C4234" flood-opacity=".18"/>
+            </filter>
+            <filter id="blur"><feGaussianBlur stdDeviation="18"/></filter>
+          </defs>
+          <circle cx="440" cy="120" r="90" fill="#F3EFE0" opacity=".7" filter="url(#blur)"/>
+          <circle cx="120" cy="360" r="70" fill="#DDE6D4" opacity=".7" filter="url(#blur)"/>
+          <path d="M60 470V240a220 220 0 0 1 440 0v230" fill="none" stroke="#C7D2BC" stroke-width="1.2" opacity=".9"/>
+          <g fill="none" stroke="#9EAE90" stroke-width="1.3" stroke-linecap="round">
+            <path d="M470 300c-10-46-2-88 22-120"/>
+            <path d="M478 286c-14-4-22-12-24-25 14 1 22 9 24 25Z" fill="#C3CFB6" stroke="none"/>
+            <path d="M483 258c14-2 23-9 27-21-14-1-23 6-27 21Z" fill="#C3CFB6" stroke="none"/>
+            <path d="M486 226c-13-6-19-15-19-28 13 3 20 12 19 28Z" fill="#C3CFB6" stroke="none"/>
+          </g>
+          <g filter="url(#soft)">
+            <rect x="332" y="168" width="86" height="272" rx="18" fill="url(#gFrost)"/>
+            <rect x="350" y="140" width="50" height="34" rx="6" fill="#E9E3D0"/>
+            <rect x="350" y="140" width="50" height="10" rx="5" fill="#D8D0B8"/>
+            <rect x="344" y="262" width="62" height="104" rx="4" fill="#FAF6E9" opacity=".9"/>
+            <text x="375" y="286" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-size="9" letter-spacing="2.4" fill="#5B6A55">DAILY</text>
+            <text x="375" y="300" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-size="9" letter-spacing="2.4" fill="#5B6A55">RITUAL</text>
+            <path d="M356 316h38M356 326h38M356 336h26" stroke="#C9C3AE" stroke-width="1"/>
+            <rect x="332" y="168" width="86" height="272" rx="18" fill="none" stroke="#FFFFFF" stroke-opacity=".55"/>
+          </g>
+          <g filter="url(#soft)">
+            <rect x="146" y="250" width="104" height="190" rx="20" fill="url(#gAmber)"/>
+            <rect x="176" y="222" width="44" height="32" rx="5" fill="#3B5340"/>
+            <rect x="160" y="318" width="76" height="82" rx="4" fill="#FFFDF4" opacity=".92"/>
+            <text x="198" y="340" text-anchor="middle" font-family="Georgia,serif" font-size="8" letter-spacing="2" fill="#6B7563">BEAUTY</text>
+            <text x="198" y="352" text-anchor="middle" font-family="Georgia,serif" font-size="8" letter-spacing="2" fill="#6B7563">IN TIME</text>
+            <path d="M170 366h56M170 375h56M170 384h34" stroke="#D6CEB8" stroke-width="1"/>
+            <rect x="146" y="250" width="104" height="190" rx="20" fill="none" stroke="#FFF" stroke-opacity=".4"/>
+          </g>
+          <g filter="url(#soft)">
+            <rect x="238" y="352" width="132" height="88" rx="26" fill="url(#gJar)"/>
+            <rect x="238" y="352" width="132" height="88" rx="26" fill="none" stroke="#FFF" stroke-opacity=".6"/>
+            <rect x="232" y="334" width="144" height="30" rx="12" fill="#3E5744"/>
+            <text x="304" y="396" text-anchor="middle" font-family="Georgia,serif" font-size="8" letter-spacing="2.6" fill="#8A8468">CREAM</text>
+            <path d="M282 408h44" stroke="#D9D1B8" stroke-width="1"/>
+          </g>
+          <rect x="100" y="438" width="360" height="6" rx="3" fill="url(#gShelf)"/>
+          <ellipse cx="280" cy="452" rx="200" ry="10" fill="#2C4234" opacity=".06"/>
+        </svg>
+      </div>
+      <p class="art-note">a quiet ritual,<br>kept in time.</p>
+    </div>
+  </section>
+
+  <section class="stats" aria-label="제품 현황">
+    <button class="stat" data-quick="active">
+      <span class="stat-top"><i class="dot dot-all"></i>관리 중인 제품</span>
+      <strong id="total">0</strong>
+    </button>
+    <button class="stat" data-quick="expired">
+      <span class="stat-top"><i class="dot red"></i>기한 경과</span>
+      <strong id="expired">0</strong>
+    </button>
+    <button class="stat" data-quick="soon">
+      <span class="stat-top"><i class="dot amber"></i>30일 이내</span>
+      <strong id="soon">0</strong>
+    </button>
+    <button class="stat" data-quick="unknown">
+      <span class="stat-top"><i class="dot gray"></i>날짜 확인 필요</span>
+      <strong id="unknown">0</strong>
+    </button>
+  </section>
+
+  <section class="collection" id="collection">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">A LITTLE CARE, EVERY DAY</p>
+        <h2>내 화장대 <span class="count-chip" id="count">0개</span></h2>
+      </div>
+      <p class="heading-note">먼저 써야 할 제품부터 살펴보세요</p>
+    </div>
+
+    <div class="tools">
+      <label class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="search" type="search" placeholder="제품명, 브랜드, 메모 검색" aria-label="제품 검색">
+      </label>
+      <span class="select-wrap">
+        <select id="categoryFilter" aria-label="카테고리 필터"><option value="">모든 카테고리</option></select>
+      </span>
+      <span class="select-wrap">
+        <select id="statusFilter" aria-label="상태 필터"><option value="">모든 상태</option></select>
+      </span>
+      <span class="select-wrap">
+        <select id="sort" aria-label="정렬">
+          <option value="due">기한 임박순</option>
+          <option value="new">최근 등록순</option>
+          <option value="name">이름순</option>
+        </select>
+      </span>
+    </div>
+
+    <div id="quickBar" hidden>
+      <span id="quickText"></span>
+      <button id="clearQuick" class="quiet">필터 해제 ×</button>
+    </div>
+
+    <div id="cards" class="cards"></div>
+  </section>
+
+  <aside class="storage-note">
+    <span class="note-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5" y="10" width="14" height="10" rx="2.5"/><path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10"/></svg>
+    </span>
+    <div class="note-copy">
+      <p class="eyebrow">YOUR DATA, YOUR DEVICE</p>
+      <h3>나의 기록은 이 브라우저에만.</h3>
+      <p>사진과 제품 정보는 현재 기기에 저장됩니다. 브라우저 데이터 삭제 전, JSON 백업을 꼭 보관하세요.</p>
+    </div>
+    <button id="backupInline" class="note-btn">백업하기 <span aria-hidden="true">↗</span></button>
+  </aside>
+
+  <footer>
+    <span class="foot-brand">뷰티기한</span>
+    <span>조금 더 다정한, 나의 화장대 관리.</span>
+    <span class="foot-meta">BEAUTY, IN TIME</span>
+  </footer>
+</main>
+
+<dialog id="editor">
+  <form id="productForm">
+    <div class="sheet-scroll">
+    <div class="dialog-head">
+      <div>
+        <p class="eyebrow">MY BEAUTY RECORD</p>
+        <h2 id="editorTitle">제품 등록</h2>
+      </div>
+      <button type="button" class="close" data-close="editor" aria-label="닫기">×</button>
+    </div>
+    <p class="dialog-lead">제품 하나가 아닌, 용기 하나씩 기록해요. 날짜는 나중에 채워도 괜찮아요.</p>
+
+    <div class="photo-block">
+      <img id="photoPreview" alt="선택한 제품 사진" hidden>
+      <label class="upload">＋ 제품 사진 선택<input id="photo" type="file" accept="image/*"></label>
+      <button type="button" id="removePhoto" class="chip-btn">사진 지우기</button>
+      <button type="button" id="ocr" class="secondary">사진에서 글자 읽기</button>
+    </div>
+    <p class="hint">OCR은 기기 안에서 처리됩니다. 최초 사용 시 엔진과 한국어·영어 모델 다운로드에 인터넷이 필요해요. 사진은 서버로 전송하지 않습니다.</p>
+
+    <section id="ocrPanel" hidden>
+      <p id="ocrStatus" role="status"></p>
+      <progress id="ocrProgress" max="100" value="0"></progress>
+      <label>인식 원문<textarea id="ocrText" rows="4"></textarea></label>
+      <button type="button" id="parseOcr" class="chip-btn">원문에서 후보 다시 찾기</button>
+      <div id="dateCandidates"></div>
+      <label>제품명 후보 (확인·수정 후 적용)<input id="ocrName" maxlength="120"></label>
+      <button type="button" id="applyName" class="secondary">제품명 적용</button>
+      <p class="hint">제조일·로트번호는 사용기한이 아닙니다. 후보는 자동 적용하지 않아요. 흐림, 곡면, 각인, 한글·두 자리 연도는 인식되지 않을 수 있어요.</p>
+    </section>
+
+    <div class="form-grid">
+      <label class="wide">제품명 <em>필수</em><input name="name" required maxlength="120" placeholder="예: 데일리 수분 크림"></label>
+      <label>브랜드<input name="brand" maxlength="120" placeholder="브랜드 이름"></label>
+      <label>카테고리<select name="category"></select></label>
+      <label>상태<select name="status"></select></label>
+      <label>표시된 사용기한<input type="date" name="expiry" min="1900-01-01" max="9999-12-31"><small>EXP·사용기한만 입력, 제조일 제외</small></label>
+      <label>개봉일<input type="date" name="opened" min="1900-01-01" max="9999-12-31"></label>
+      <label>개봉 후 사용기간 (개월)<input type="number" name="months" min="1" max="120" step="1" list="periods" placeholder="모르면 비워 두세요">
+        <datalist id="periods"><option value="3">3M</option><option value="6">6M</option><option value="12">12M</option><option value="24">24M</option></datalist>
+      </label>
+      <label class="wide">메모<textarea name="memo" rows="3" maxlength="10000" placeholder="구매일, 사용감, 기억해 둘 내용"></textarea></label>
+    </div>
+
+    <div id="calculation" class="calculation" aria-live="polite"></div>
+    <p id="formError" class="error" role="alert"></p>
+    </div>
+
+    <div class="dialog-actions">
+      <button type="button" id="delete" class="danger" hidden>제품 삭제</button>
+      <button type="button" data-close="editor" class="quiet">취소</button>
+      <button type="submit" class="primary" id="save">저장하기</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="backupDialog">
+  <div class="dialog-head">
+    <div>
+      <p class="eyebrow">KEEP IT SAFE</p>
+      <h2>기록을 안전하게</h2>
+    </div>
+    <button class="close" data-close="backupDialog" aria-label="닫기">×</button>
+  </div>
+  <p class="dialog-lead">이 앱은 로그인·서버 저장·기기 간 동기화 없이, 현재 브라우저의 IndexedDB에 저장합니다. 다른 브라우저나 기기에서는 별도의 화장대가 열려요.</p>
+
+  <div class="sheet-section">
+    <button id="export" class="primary block">JSON 백업 다운로드</button>
+    <p class="hint">사진도 포함됩니다. 백업 파일은 개인 정보이므로 안전하게 보관하세요.</p>
+  </div>
+
+  <hr>
+
+  <div class="sheet-section">
+    <h3>백업 복원</h3>
+    <p>같은 ID의 용기는 덮어쓰고, 다른 제품은 추가합니다. 현재 제품을 삭제하지 않습니다. 먼저 현재 기록을 백업해 주세요.</p>
+    <input id="importFile" type="file" accept=".json,application/json" aria-label="백업 JSON 선택">
+    <div id="restorePreview" hidden>
+      <p id="restoreInfo"></p>
+      <button id="restore" class="secondary">확인한 백업 복원하기</button>
+    </div>
+    <p id="backupStatus" role="status"></p>
+  </div>
+
+  <hr>
+
+  <div class="sheet-section">
+    <h3>앱처럼 사용하기</h3>
+    <p id="installHelp">HTTPS 주소에서 열고 Android는 브라우저 메뉴의 ‘앱 설치’, iPhone은 Safari 공유 메뉴의 ‘홈 화면에 추가’를 이용하세요.</p>
+    <button id="install" class="secondary" hidden>홈 화면에 설치</button>
+    <p class="hint">첫 접속과 OCR 모델 다운로드에는 인터넷이 필요합니다. 기본 화면·제품 관리·백업은 앱 파일이 캐시된 후 오프라인에서도 사용할 수 있어요. OCR 모델의 오프라인 재사용은 브라우저 캐시에 따라 달라집니다.</p>
+    <p class="hint">앱 종료 중 푸시 알림은 제공하지 않습니다. 기한 분류는 앱을 열거나 다시 돌아올 때 갱신합니다. 관리 기준일은 기록을 돕는 기준이며 제품의 안전성을 판정하지 않습니다.</p>
+  </div>
+</dialog>
+
+<dialog id="confirmDialog">
+  <h2 id="confirmTitle">확인</h2>
+  <p id="confirmBody"></p>
+  <div class="dialog-actions">
+    <button id="confirmCancel" class="quiet">취소</button>
+    <button id="confirmYes" class="primary">확인</button>
+  </div>
+</dialog>
+
+<div id="toast" role="status"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
