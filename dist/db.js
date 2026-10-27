@@ -1,0 +1,4 @@
+let promise;
+function db(){return promise??=new Promise((resolve,reject)=>{let r=indexedDB.open('beauty-deadline',1);r.onupgradeneeded=()=>r.result.createObjectStore('products',{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+export async function all(){const d=await db();return new Promise((resolve,reject)=>{const r=d.transaction('products').objectStore('products').getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+export async function write(items,removeId){const d=await db();return new Promise((resolve,reject)=>{const t=d.transaction('products','readwrite'),s=t.objectStore('products');if(removeId)s.delete(removeId);for(const p of items)s.put(p);t.oncomplete=resolve;t.onabort=()=>reject(t.error||Error('저장 실패'));t.onerror=()=>reject(t.error);});}
