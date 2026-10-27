@@ -2,3 +2,13 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.log
+
+# Local credentials, backups and hosting metadata
+.env
+.env.*
+!.env.example
+.openai/
+*.pem
+*.key
+*백업*.json
+beauty-deadline-backup*.json

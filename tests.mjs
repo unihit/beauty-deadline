@@ -5,3 +5,26 @@ test('earliest date and missing information',()=>{assert.equal(deadline({status:
 test('classification boundaries',()=>{for(const [d,label] of [['2026-10-26','기한 경과'],['2026-10-27','30일 이내'],['2026-11-26','30일 이내'],['2026-11-27','여유 있어요']])assert.equal(deadline({expiry:d},'2026-10-27').label,label)});
 test('OCR candidates and manufacture guard',()=>{let c=candidates('MFG 2026.01.31\nEXP 2027.02.28');assert.equal(c.length,2);assert.equal(c[0].manufacture,true);assert.equal(c[1].manufacture,false);assert.equal(candidates('EXP 2026.02.30').length,0)});
 test('backup rejects executable image and invalid months',()=>{const p={id:'x',name:'x',brand:'',memo:'',category:'스킨케어',status:'미개봉',photo:'',expiry:'',opened:'',months:null};assert.equal(validateProduct(p),p);assert.throws(()=>validateProduct({...p,photo:'javascript:alert(1)'}));assert.throws(()=>validateProduct({...p,months:2.5}));});
+
+import vm from 'node:vm';
+import {readFileSync} from 'node:fs';
+test('service worker isolates app paths and cache namespaces',async()=>{
+  const handlers={},deleted=[],scope='https://unihit.github.io/beauty-deadline/';
+  const prefix='beauty-deadline:'+scope+':';
+  const context={URL,Response,self:{registration:{scope},addEventListener:(name,fn)=>handlers[name]=fn,clients:{claim:async()=>{}},skipWaiting:async()=>{}},
+    caches:{open:async()=>({put:async()=>{}}),keys:async()=>['beauty-v3','other-app',prefix+'v3',prefix+'v4'],delete:async key=>deleted.push(key)}};
+  vm.runInNewContext(readFileSync(new URL('./dist/sw.js',import.meta.url),'utf8'),context);
+  let pending;
+  handlers.activate({waitUntil:p=>pending=p});await pending;
+  assert.deepEqual(deleted,[prefix+'v3']);
+  for(const url of ['https://unihit.github.io/ssen-ledger/','https://unihit.github.io/beauty-deadline-other/','https://example.com/beauty-deadline/']){
+    let intercepted=false;
+    handlers.fetch({request:{method:'GET',url},respondWith:()=>intercepted=true});
+    assert.equal(intercepted,false,url);
+  }
+  context.fetch=async()=>new Response('ok');
+  let intercepted;
+  handlers.fetch({request:{method:'GET',url:scope+'app.js'},waitUntil:()=>{},respondWith:p=>intercepted=p});
+  // Cache failures must not hide the online response.
+  assert.equal((await intercepted).status,200);
+});
