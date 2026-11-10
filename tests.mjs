@@ -71,11 +71,11 @@ test('service worker isolates app paths and cache namespaces',async()=>{
   const handlers={},deleted=[],scope='https://unihit.github.io/beauty-deadline/';
   const prefix='beauty-deadline:'+scope+':';
   const context={URL,Response,self:{registration:{scope},addEventListener:(name,fn)=>handlers[name]=fn,clients:{claim:async()=>{}},skipWaiting:async()=>{}},
-    caches:{open:async()=>({put:async()=>{}}),keys:async()=>['beauty-v3','other-app',prefix+'v5',prefix+'v6'],delete:async key=>deleted.push(key)}};
+    caches:{open:async()=>({put:async()=>{}}),keys:async()=>['beauty-v3','other-app',prefix+'v5',prefix+'v6',prefix+'v7'],delete:async key=>deleted.push(key)}};
   vm.runInNewContext(readFileSync(new URL('./dist/sw.js',import.meta.url),'utf8'),context);
   let pending;
   handlers.activate({waitUntil:p=>pending=p});await pending;
-  assert.deepEqual(deleted,[prefix+'v5']);
+  assert.deepEqual(deleted,[prefix+'v5',prefix+'v6']);
   for(const url of ['https://unihit.github.io/ssen-ledger/','https://unihit.github.io/beauty-deadline-other/','https://example.com/beauty-deadline/']){
     let intercepted=false;
     handlers.fetch({request:{method:'GET',url},respondWith:()=>intercepted=true});
