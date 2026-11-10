@@ -168,7 +168,7 @@ button:disabled { opacity: .45; cursor: wait; }
 .head-right {
   display: flex;
   align-items: center;
-  gap: 26px;
+  gap: 10px;
   flex: none;
 }
 
@@ -177,7 +177,7 @@ button:disabled { opacity: .45; cursor: wait; }
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
-  margin: 0;
+  margin: 0 12px 0 0;
   line-height: 1.15;
 }
 .today span {
@@ -215,6 +215,16 @@ button:disabled { opacity: .45; cursor: wait; }
   border-color: #d6cfc0;
   transform: translateY(-1px);
   box-shadow: var(--shadow-sm);
+}
+.ghost-btn.head-add {
+  background: var(--sage-soft);
+  border-color: #d3dfd0;
+  color: var(--sage-deep);
+  font-weight: 600;
+}
+.ghost-btn.head-add:hover {
+  background: #dfe9db;
+  border-color: #bdcbb8;
 }
 
 /* --------------------------------------------------------------------------
@@ -403,6 +413,12 @@ h1 .accent::after {
   font-weight: 500;
 }
 .chip-btn:hover { background: #fff; border-color: #d5cebf; }
+.chip-btn.is-active {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: #fbf9f3;
+  font-weight: 600;
+}
 
 /* hero art */
 .hero-art { position: relative; }
@@ -510,7 +526,7 @@ h1 .accent::after {
 .dot.red { background: #b06a58; }
 .dot.amber { background: #b3924f; }
 .dot.gray { background: #a9b0a1; }
-.dot.all { background: var(--sage); }
+.dot.all, .dot.dot-all { background: var(--sage); }
 
 .stat strong {
   font-family: var(--serif);
@@ -850,6 +866,10 @@ h2 {
   color: #747d70;
   letter-spacing: -.01em;
 }
+.reason.is-warn {
+  color: #8a6a2f;
+  font-weight: 500;
+}
 
 .card-foot {
   display: flex;
@@ -872,6 +892,11 @@ h2 {
   background: #c4cabe;
   vertical-align: middle;
 }
+.card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
 .card-foot button {
   display: inline-flex;
   align-items: center;
@@ -880,10 +905,23 @@ h2 {
   color: var(--sage);
   font-size: 10px;
   font-weight: 600;
-  transition: gap .25s var(--ease), color .25s;
+  transition: gap .25s var(--ease), color .25s, background .25s;
 }
 .card-foot button:hover { gap: 8px; color: var(--sage-deep); }
 .card-foot button svg { width: 10px; height: 10px; }
+.card-foot .quick-act {
+  padding: 4px 9px;
+  border: 1px solid #d5dfd1;
+  border-radius: 999px;
+  background: var(--sage-soft);
+  color: var(--sage-deep);
+  font-size: 9.5px;
+}
+.card-foot .quick-act:hover {
+  gap: 4px;
+  background: #dfe9db;
+  border-color: #bdcbb8;
+}
 
 /* empty */
 .empty {
@@ -1226,6 +1264,12 @@ dialog h3 {
 }
 #dateCandidates button:hover:not(:disabled) { border-color: #b6c3af; background: #fbfdf8; }
 #dateCandidates .manufacture { background: #fbf3ef; color: #9b6a5c; }
+#paoCandidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 2px;
+}
 
 /* form */
 .form-grid {
@@ -1235,6 +1279,23 @@ dialog h3 {
   margin-top: 24px;
 }
 .wide { grid-column: 1 / -1; }
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.field-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.field-chips .chip-btn {
+  height: 30px;
+  padding: 0 11px;
+  font-size: 10.5px;
+}
 
 .form-grid label {
   display: block;
@@ -1306,6 +1367,11 @@ dialog h3 {
   line-height: 1.75;
   color: #4e5e50;
   word-break: keep-all;
+}
+.calculation.is-warn {
+  border-left-color: #c29b53;
+  background: linear-gradient(90deg, #f8f1df, #fbf7ec);
+  color: #7b5d24;
 }
 
 .error {
