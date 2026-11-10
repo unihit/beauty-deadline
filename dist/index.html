@@ -287,6 +287,30 @@
 
   <hr>
 
+  <div class="sheet-section gdrive-section">
+    <div class="gdrive-head">
+      <h3>구글 드라이브 클라우드 동기화</h3>
+      <span id="gdriveBadge" class="badge unknown">연결 안 됨</span>
+    </div>
+    <p>내 구글 드라이브의 전용 숨김 폴더(AppData)와 동기화하여 다른 폰이나 PC에서도 같은 화장대를 사용할 수 있어요.</p>
+
+    <div id="gdriveConfigArea">
+      <label class="gdrive-label">Google OAuth 클라이언트 ID
+        <input id="gdriveClientId" type="text" placeholder="예: 123456789-xxx.apps.googleusercontent.com" spellcheck="false">
+      </label>
+      <small class="hint">최초 1회 설정하면 이 브라우저에 안전하게 보관됩니다.</small>
+    </div>
+
+    <div class="gdrive-actions">
+      <button id="gdriveConnect" class="secondary" type="button">구글 드라이브 연결</button>
+      <button id="gdriveSyncNow" class="primary" type="button" hidden>지금 동기화</button>
+      <button id="gdriveDisconnect" class="quiet" type="button" hidden>연결 해제</button>
+    </div>
+    <p id="gdriveStatus" class="hint" role="status"></p>
+  </div>
+
+  <hr>
+
   <div class="sheet-section">
     <h3>백업 복원</h3>
     <p>같은 ID의 용기는 덮어쓰고, 다른 제품은 추가합니다. 현재 제품을 삭제하지 않습니다. 먼저 현재 기록을 백업해 주세요.</p>
@@ -319,6 +343,7 @@
 </dialog>
 
 <div id="toast" role="status"></div>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>

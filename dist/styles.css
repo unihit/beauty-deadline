@@ -1467,9 +1467,63 @@ dialog h3 {
   border-radius: 12px;
   background: #f1f4ea;
 }
-#restorePreview p { margin: 0 0 10px; font-size: 11.5px; }
 #backupStatus { min-height: 1.6em; margin: 10px 0 0; font-size: 11px; color: var(--sage); }
 #backupDialog .hint + .hint { margin-top: 10px; }
+
+/* Google Drive sync */
+.gdrive-section {
+  padding: 18px 20px;
+  border: 1px solid #dee5d7;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #f9faf6, #edf3e7);
+}
+.gdrive-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.gdrive-head h3 { margin: 0; font-size: 16px; }
+.gdrive-label {
+  display: block;
+  margin-top: 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #5c685d;
+}
+.gdrive-label input {
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 12px;
+  border: 1px solid #dcd7c9;
+  border-radius: 10px;
+  background: #fff;
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--ink);
+}
+.gdrive-label input:focus {
+  outline: none;
+  border-color: #a9bba2;
+  box-shadow: 0 0 0 3px rgba(62, 90, 71, .07);
+}
+.gdrive-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+#gdriveStatus {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--sage);
+  min-height: 1.4em;
+}
+#gdriveStatus.is-error {
+  color: #a05b4a;
+}
 
 /* confirm */
 #confirmDialog { width: min(420px, calc(100% - 40px)); padding: 28px; }
