@@ -25,6 +25,10 @@
       <span class="wordmark">뷰티기한<span class="wordmark-sub">BEAUTY, IN TIME</span></span>
     </a>
     <div class="head-right">
+      <button id="modeBadge" class="mode-badge is-viewer" type="button" aria-label="PC 모드 전환">
+        <span class="mode-dot"></span>
+        <span id="modeLabel">조회 전용</span>
+      </button>
       <p class="today"><span>TODAY</span><b id="todayLabel">—</b></p>
       <button id="headerAdd" class="ghost-btn head-add" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -285,6 +289,21 @@
 
       <hr>
 
+      <div class="sheet-section pc-mode-section">
+        <div class="pc-mode-head">
+          <div>
+            <h3>PC 임시 편집 모드</h3>
+            <p class="hint">동기화 충돌을 방지하기 위해 PC는 기본적으로 조회 전용입니다. PC에서 직접 제품을 등록하거나 수정하려면 임시로 켤 수 있어요.</p>
+          </div>
+          <label class="switch-wrap" aria-label="PC 임시 편집 모드 켜기/끄기">
+            <input type="checkbox" id="pcEditToggle">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <hr>
+
       <div class="sheet-section gdrive-section">
         <div class="gdrive-head">
           <h3>구글 드라이브 클라우드 동기화</h3>
@@ -333,7 +352,62 @@
   </div>
 </dialog>
 
-<dialog id="confirmDialog">
+<dialog id="detailDialog">
+  <div class="detail-sheet">
+    <div class="dialog-head">
+      <div>
+        <p class="eyebrow">PRODUCT DETAIL</p>
+        <h2 id="detailTitle">제품 상세</h2>
+      </div>
+      <button class="close" data-close="detailDialog" aria-label="닫기" type="button">×</button>
+    </div>
+    <div class="detail-scroll">
+      <div id="detailPhotoWrap" class="detail-photo-wrap" hidden>
+        <img id="detailPhoto" alt="제품 사진">
+      </div>
+      <div class="detail-info">
+        <div class="detail-tags">
+          <span id="detailCategory" class="detail-chip"></span>
+          <span id="detailStatus" class="detail-chip"></span>
+          <span id="detailDeadlineBadge" class="badge"></span>
+        </div>
+        <h3 id="detailName" class="detail-name"></h3>
+        <p id="detailBrand" class="detail-brand"></p>
+
+        <div class="detail-meta-grid">
+          <div class="detail-meta-item">
+            <span class="detail-meta-label">표시된 사용기한 (EXP)</span>
+            <strong id="detailExpiry" class="detail-meta-val">-</strong>
+          </div>
+          <div class="detail-meta-item">
+            <span class="detail-meta-label">개봉일</span>
+            <strong id="detailOpened" class="detail-meta-val">-</strong>
+          </div>
+          <div class="detail-meta-item">
+            <span class="detail-meta-label">개봉 후 권장기간 (PAO)</span>
+            <strong id="detailMonths" class="detail-meta-val">-</strong>
+          </div>
+          <div class="detail-meta-item">
+            <span class="detail-meta-label">관리 기준일</span>
+            <strong id="detailTargetDate" class="detail-meta-val highlight">-</strong>
+          </div>
+        </div>
+
+        <div id="detailReasonBox" class="detail-calc-box" hidden></div>
+
+        <div id="detailMemoSection" class="detail-memo-section" hidden>
+          <span class="detail-meta-label">메모</span>
+          <p id="detailMemo" class="detail-memo"></p>
+        </div>
+      </div>
+    </div>
+    <div class="detail-actions">
+      <p class="detail-hint">PC는 조회 전용 모드입니다. 제품 수정이나 삭제는 모바일에서 진행해 주세요.</p>
+      <button type="button" id="detailEditBtn" class="secondary">이 제품 임시 수정하기</button>
+      <button type="button" data-close="detailDialog" class="quiet">닫기</button>
+    </div>
+  </div>
+</dialog>
   <h2 id="confirmTitle">확인</h2>
   <p id="confirmBody"></p>
   <div class="dialog-actions">

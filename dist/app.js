@@ -14,11 +14,12 @@ async function runDriveSync(silent=false){
   const statusEl=$('#gdriveStatus');
   if(!silent){statusEl.textContent='구글 드라이브와 동기화 중…';statusEl.classList.remove('is-error');}
   try{
-    const res=await syncWithDrive(products);
+    const readOnly=isViewOnlyMode();
+    const res=await syncWithDrive(products,{readOnlyPull:readOnly});
     await write(res.mergedProducts);
     await refresh();
     updateGDriveUI();
-    if(!silent)toast(`구글 드라이브 동기화 완료 (${res.count}개 제품).`);
+    if(!silent)toast(readOnly?`구글 드라이브에서 최신 화장대를 가져왔어요 (${res.count}개).`:`구글 드라이브 동기화 완료 (${res.count}개 제품).`);
   }catch(err){
     statusEl.textContent='동기화 실패: '+err.message;
     statusEl.classList.add('is-error');
@@ -104,14 +105,130 @@ function calculation(){
   calcEl.textContent=`관리 기준일: ${d.date||'날짜 확인 필요'} · ${d.reason}`;
   calcEl.classList.toggle('is-warn',Boolean(d.partial));
 }
+function isMobileDevice(){
+  const small=window.innerWidth<=768;
+  const touch=('ontouchstart' in window)||(navigator.maxTouchPoints>0);
+  const pwa=window.matchMedia('(display-mode: standalone)').matches;
+  return small||(touch&&window.innerWidth<=1024)||pwa;
+}
+function isPcEditModeEnabled(){
+  return localStorage.getItem('beauty_pc_edit_mode')==='true';
+}
+function setPcEditModeEnabled(v){
+  if(v)localStorage.setItem('beauty_pc_edit_mode','true');
+  else localStorage.removeItem('beauty_pc_edit_mode');
+  updateModeUI();
+}
+function isViewOnlyMode(){
+  if(isMobileDevice())return false;
+  return !isPcEditModeEnabled();
+}
+function updateModeUI(){
+  const badge=$('#modeBadge'),label=$('#modeLabel'),toggle=$('#pcEditToggle'),mobile=isMobileDevice(),pcEdit=isPcEditModeEnabled();
+  if(toggle)toggle.checked=pcEdit;
+  if(!badge||!label)return;
+  if(mobile){
+    badge.className='mode-badge is-mobile';
+    label.textContent='모바일 모드';
+    badge.title='모바일 기기: 입력 및 수정 메인 모드';
+  }else if(pcEdit){
+    badge.className='mode-badge is-editing';
+    label.textContent='PC 임시 편집';
+    badge.title='클릭하면 PC 조회 전용 모드로 전환됩니다';
+  }else{
+    badge.className='mode-badge is-viewer';
+    label.textContent='조회 전용';
+    badge.title='클릭하면 PC 임시 편집 모드로 전환됩니다';
+  }
+}
+function openDetail(id){
+  const p=products.find(x=>x.id===id);
+  if(!p)return;
+  const d=deadline(p);
+  const completed=['사용 완료','폐기'].includes(p.status);
+  const tag=completed?'unknown':d.days===null?'unknown':d.days<0?'red':d.days<=30?'amber':'green';
+
+  $('#detailTitle').textContent=p.name;
+  $('#detailName').textContent=p.name;
+  $('#detailBrand').textContent=p.brand||'브랜드 미기입';
+  $('#detailCategory').textContent=p.category||'기타';
+  $('#detailStatus').textContent=p.status||'미개봉';
+
+  const badgeEl=$('#detailDeadlineBadge');
+  badgeEl.className=`badge ${tag}`;
+  badgeEl.textContent=completed?'관리 종료':d.label;
+
+  if(p.photo){
+    $('#detailPhotoWrap').hidden=false;
+    $('#detailPhoto').src=p.photo;
+  }else{
+    $('#detailPhotoWrap').hidden=true;
+    $('#detailPhoto').src='';
+  }
+
+  $('#detailExpiry').textContent=p.expiry||'미입력';
+  $('#detailOpened').textContent=p.opened||(p.status==='미개봉'?'미개봉 상태':'미입력');
+  $('#detailMonths').textContent=p.months?`${p.months}개월 (${p.months}M)`:'기간 미입력';
+  $('#detailTargetDate').textContent=d.date?`${d.date} (${d.days!==null?(d.days>=0?`D-${d.days}`:`D+${Math.abs(d.days)}`):''})`:'날짜 확인 필요';
+
+  const reasonBox=$('#detailReasonBox');
+  if(d.reason){
+    reasonBox.hidden=false;
+    reasonBox.textContent=`기준 안내: ${d.reason}`;
+  }else{
+    reasonBox.hidden=true;
+  }
+
+  const memoSec=$('#detailMemoSection');
+  if(p.memo&&p.memo.trim()){
+    memoSec.hidden=false;
+    $('#detailMemo').textContent=p.memo.trim();
+  }else{
+    memoSec.hidden=true;
+  }
+
+  $('#detailEditBtn').onclick=()=>{
+    $('#detailDialog').close();
+    openEditor(p.id);
+  };
+
+  $('#detailDialog').showModal();
+}
 function setPhoto(v,ocrV=v){photo=v;ocrPhoto=ocrV;$('#photoPreview').hidden=!v;$('#photoPreview').src=v||'';}
 function openEditor(id){if(busy||photoBusy)return;editing=products.find(p=>p.id===id)||null;form.reset();$('#ocrPanel').hidden=true;$('#ocrText').value='';$('#dateCandidates').innerHTML='';$('#paoCandidates').innerHTML='';$('#formError').textContent='';$('#editorTitle').textContent=editing?'제품 기록 수정':'제품 등록';$('#delete').hidden=!editing;for(const n of ['name','brand','category','status','expiry','opened','months','memo'])if(editing)el(n).value=editing[n]??'';setPhoto(editing?.photo||'');calculation();$('#editor').showModal();}
 function controls(){ $('#save').disabled=busy||photoBusy;$('#ocr').disabled=busy||photoBusy;$('#photo').disabled=busy||photoBusy;$('#removePhoto').disabled=busy||photoBusy;$('#delete').disabled=busy||photoBusy;}
-$('#add').onclick=()=>openEditor();
-$('#headerAdd').onclick=()=>openEditor();
+function handleAddProduct(){
+  if(isViewOnlyMode()){
+    confirmAction('PC에서 제품을 등록할까요?','모바일이 메인 입력 기기입니다. PC에서 임시로 새 제품을 등록하시겠습니까?').then(yes=>{
+      if(yes)openEditor();
+    });
+  }else{
+    openEditor();
+  }
+}
+$('#add').onclick=handleAddProduct;
+$('#headerAdd').onclick=handleAddProduct;
+$('#modeBadge')?.addEventListener('click',()=>{
+  if(isMobileDevice()){
+    toast('모바일 기기는 언제나 입력·수정이 가능한 메인 모드로 동작합니다.');
+    return;
+  }
+  const next=!isPcEditModeEnabled();
+  setPcEditModeEnabled(next);
+  toast(next?'PC 임시 편집 모드를 켰어요. 제품 등록과 수정이 가능합니다.':'PC 조회 전용 모드로 전환했어요. 안전하게 둘러보실 수 있습니다.');
+});
+$('#pcEditToggle')?.addEventListener('change',e=>{
+  setPcEditModeEnabled(e.target.checked);
+  toast(e.target.checked?'PC 임시 편집 모드를 켰어요.':'PC 조회 전용 모드로 전환했어요.');
+});
+window.addEventListener('resize',updateModeUI);
 $('#cards').onclick=async e=>{
   const openBtn=e.target.closest('[data-open-now]');
   if(openBtn){
+    if(isViewOnlyMode()){
+      toast('PC는 조회 전용 모드입니다. 상태 변경은 모바일에서 진행하거나 PC 임시 편집 모드를 켜주세요.');
+      return;
+    }
     const p=products.find(x=>x.id===openBtn.dataset.openNow);
     if(!p)return;
     const openedDate=p.opened&&p.opened<=today()?p.opened:today();
@@ -123,6 +240,10 @@ $('#cards').onclick=async e=>{
   }
   const finishBtn=e.target.closest('[data-finish-now]');
   if(finishBtn){
+    if(isViewOnlyMode()){
+      toast('PC는 조회 전용 모드입니다. 상태 변경은 모바일에서 진행하거나 PC 임시 편집 모드를 켜주세요.');
+      return;
+    }
     const p=products.find(x=>x.id===finishBtn.dataset.finishNow);
     if(!p)return;
     await write([{...p,status:'사용 완료',updatedAt:new Date().toISOString()}]);
@@ -132,7 +253,13 @@ $('#cards').onclick=async e=>{
     return;
   }
   const b=e.target.closest('[data-edit]');
-  if(b)openEditor(b.dataset.edit);
+  if(b){
+    if(isViewOnlyMode()){
+      openDetail(b.dataset.edit);
+    }else{
+      openEditor(b.dataset.edit);
+    }
+  }
 };
 for(const s of ['#search','#categoryFilter','#sort'])$(s).addEventListener('input',render);
 $('#statusFilter').addEventListener('input',()=>{
@@ -169,7 +296,7 @@ $('#paoChips').onclick=e=>{
 };
 form.addEventListener('input',calculation);
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{if(busy||photoBusy)return;$('#'+b.dataset.close).close()});
-for(const dlg of ['#editor','#backupDialog']){
+for(const dlg of ['#editor','#backupDialog','#detailDialog']){
   $(dlg).addEventListener('click',e=>{if(e.target===$(dlg)&&!busy&&!photoBusy)$(dlg).close()});
 }
 $('#editor').addEventListener('cancel',e=>{if(busy||photoBusy)e.preventDefault()});
@@ -222,5 +349,5 @@ $('#importFile').onchange=async e=>{restoreItems=null;$('#restorePreview').hidde
 $('#restore').onclick=async()=>{if(!restoreItems)return;$('#restore').disabled=true;try{await write(restoreItems);await refresh();triggerAutoSync();$('#backupStatus').textContent=`${restoreItems.length}개 제품을 복원했어요.`;restoreItems=null;$('#restorePreview').hidden=true;$('#importFile').value='';toast('백업 복원을 완료했어요.')}catch(e){$('#backupStatus').textContent='복원 실패. 기존 기록은 유지됩니다. '+e.message}finally{$('#restore').disabled=false}};
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('#install').hidden=false});$('#install').onclick=async()=>{if(installPrompt){await installPrompt.prompt();installPrompt=null;$('#install').hidden=true}};
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){setToday();refresh().catch(e=>toast(e.message))}});setInterval(()=>{if(!document.hidden)render()},60000);
-setToday();updateGDriveUI();try{await refresh()}catch(e){$('#cards').innerHTML='<div class="empty"><h3>저장 공간을 열 수 없어요</h3><p>브라우저의 저장 공간 권한과 비공개 모드를 확인하고 다시 열어 주세요.</p></div>';toast('저장소 오류: '+e.message)}
+setToday();updateGDriveUI();updateModeUI();try{await refresh()}catch(e){$('#cards').innerHTML='<div class="empty"><h3>저장 공간을 열 수 없어요</h3><p>브라우저의 저장 공간 권한과 비공개 모드를 확인하고 다시 열어 주세요.</p></div>';toast('저장소 오류: '+e.message)}
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>toast('오프라인 준비에 실패했어요. 온라인에서는 계속 사용할 수 있습니다.'));

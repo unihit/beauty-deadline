@@ -182,8 +182,9 @@ async function uploadData(fileId, payload) {
   }
 }
 
-// Full 2-Way Sync Flow
-export async function syncWithDrive(localProducts) {
+// Sync Flow (Supports full 2-way sync or read-only pull for PC viewer)
+export async function syncWithDrive(localProducts, options = {}) {
+  const readOnlyPull = Boolean(options.readOnlyPull);
   const remoteMeta = await findRemoteFile();
   let merged = [...localProducts];
   let remoteData = null;
@@ -195,23 +196,35 @@ export async function syncWithDrive(localProducts) {
     }
   }
 
-  // Upload the merged outcome back to Drive
+  const nowStr = new Date().toISOString();
+  localStorage.setItem('beauty_last_synced_at', nowStr);
+
+  // In read-only pull mode (PC web viewer default):
+  // Do NOT write back to Google Drive, preventing multi-device race conditions!
+  if (readOnlyPull) {
+    return {
+      mergedProducts: merged,
+      syncedAt: nowStr,
+      count: merged.length,
+      readOnly: true
+    };
+  }
+
+  // Full 2-Way Sync: Upload the merged outcome back to Drive
   const payload = {
     app: 'beauty-deadline',
     version: 1,
-    syncedAt: new Date().toISOString(),
+    syncedAt: nowStr,
     deletedIds: getDeletedIds(),
     products: merged
   };
 
   await uploadData(remoteMeta ? remoteMeta.id : null, payload);
 
-  const nowStr = new Date().toISOString();
-  localStorage.setItem('beauty_last_synced_at', nowStr);
-
   return {
     mergedProducts: merged,
     syncedAt: nowStr,
-    count: merged.length
+    count: merged.length,
+    readOnly: false
   };
 }

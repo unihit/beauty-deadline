@@ -227,6 +227,56 @@ button:disabled { opacity: .45; cursor: wait; }
   border-color: #bdcbb8;
 }
 
+/* PC vs Mobile Mode Badge */
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .7);
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .2s var(--ease);
+}
+.mode-badge:hover {
+  background: #fff;
+  border-color: #d6cfc0;
+  transform: translateY(-1px);
+}
+.mode-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #7a8c78;
+  transition: background .2s, box-shadow .2s;
+}
+.mode-badge.is-viewer .mode-dot {
+  background: #7a8c78;
+}
+.mode-badge.is-editing {
+  border-color: #d8c2b5;
+  background: #fdfaf7;
+  color: #7a3c26;
+}
+.mode-badge.is-editing .mode-dot {
+  background: #c2613d;
+  box-shadow: 0 0 0 3px rgba(194, 97, 61, .2);
+}
+.mode-badge.is-mobile {
+  border-color: #cdd8c8;
+  background: #f4f7f2;
+  color: #3b543d;
+}
+.mode-badge.is-mobile .mode-dot {
+  background: #476a4b;
+}
+
 /* --------------------------------------------------------------------------
    layout
    -------------------------------------------------------------------------- */
@@ -1488,6 +1538,60 @@ dialog h3 {
 #backupStatus { min-height: 1.6em; margin: 10px 0 0; font-size: 11px; color: var(--sage); }
 #backupDialog .hint + .hint { margin-top: 10px; }
 
+/* PC Edit Toggle */
+.pc-mode-section {
+  padding: 16px 20px;
+  border: 1px solid #e1dbce;
+  border-radius: 16px;
+  background: #faf8f3;
+}
+.pc-mode-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.pc-mode-head h3 { margin: 0; font-size: 15px; }
+.pc-mode-head .hint { margin: 4px 0 0; }
+.switch-wrap {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex: none;
+  cursor: pointer;
+}
+.switch-wrap input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switch-slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 99px;
+  background: #d5d0c2;
+  transition: .25s var(--ease);
+}
+.switch-slider::before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  transition: .25s var(--ease);
+}
+.switch-wrap input:checked + .switch-slider {
+  background: #536e56;
+}
+.switch-wrap input:checked + .switch-slider::before {
+  transform: translateX(20px);
+}
+
 /* Google Drive sync */
 .gdrive-section {
   padding: 18px 20px;
@@ -1541,6 +1645,158 @@ dialog h3 {
 }
 #gdriveStatus.is-error {
   color: #a05b4a;
+}
+
+/* detail dialog */
+#detailDialog {
+  width: min(580px, calc(100% - 40px));
+  padding: 0;
+  overflow: hidden;
+}
+.detail-sheet {
+  display: flex;
+  flex-direction: column;
+  max-height: 86dvh;
+  min-height: 0;
+}
+#detailDialog .dialog-head {
+  flex: none;
+  padding: 24px 28px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-2);
+  z-index: 2;
+}
+.detail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 28px 24px;
+  scrollbar-width: thin;
+  scrollbar-color: #d7d1c3 transparent;
+}
+.detail-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.detail-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 99px;
+  background: #d7d1c3 content-box;
+}
+.detail-scroll::-webkit-scrollbar-track {
+  margin-top: 6px;
+  margin-bottom: 14px;
+}
+.detail-photo-wrap {
+  margin-bottom: 16px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #ede8dc;
+  max-height: 260px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.detail-photo-wrap img {
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  display: block;
+}
+.detail-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.detail-chip {
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: #eae5d9;
+  color: var(--ink-2);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+.detail-name {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.detail-brand {
+  margin: 4px 0 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.detail-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.detail-meta-item {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbf9f5;
+}
+.detail-meta-label {
+  display: block;
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.detail-meta-val {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.detail-meta-val.highlight {
+  color: var(--sage);
+}
+.detail-calc-box {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f3f6ee;
+  border: 1px solid #dce4d2;
+  font-size: 11.5px;
+  color: #3b503e;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+.detail-memo-section {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #faf8f3;
+  border: 1px solid var(--line);
+  margin-bottom: 14px;
+}
+.detail-memo {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  color: var(--ink);
+}
+.detail-actions {
+  flex: none;
+  padding: 14px 28px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--paper-2);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.detail-hint {
+  flex: 1 1 100%;
+  margin: 0 0 4px;
+  font-size: 10.5px;
+  color: var(--muted);
 }
 
 /* confirm */
@@ -1773,6 +2029,26 @@ dialog h3 {
   }
   .backup-scroll {
     padding: 14px 20px 22px;
+  }
+  .mode-badge { display: none; }
+  #detailDialog {
+    width: min(540px, calc(100% - 32px));
+    max-height: 86dvh;
+    margin: auto;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 22px;
+    border-bottom: 1px solid rgba(229, 223, 211, .9);
+  }
+  #detailDialog::before { display: none; }
+  #detailDialog .dialog-head {
+    padding: 18px 20px 12px;
+  }
+  .detail-scroll {
+    padding: 14px 20px 20px;
+  }
+  .detail-meta-grid {
+    grid-template-columns: 1fr;
   }
   #toast { bottom: 20px; font-size: 11px; padding: 11px 17px; }
 }
