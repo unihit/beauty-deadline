@@ -1713,6 +1713,15 @@ dialog h3 {
   .dialog-actions .quiet { height: 40px; font-size: 11.5px; }
   #confirmDialog { width: calc(100% - 40px); margin: auto; border-radius: 22px; border-bottom: 1px solid rgba(229, 223, 211, .9); padding: 24px; }
   #confirmDialog::before { display: none; }
+  #backupDialog {
+    width: min(540px, calc(100% - 32px));
+    max-height: 86dvh;
+    margin: auto;
+    padding: 26px 20px;
+    border-radius: 22px;
+    border-bottom: 1px solid rgba(229, 223, 211, .9);
+  }
+  #backupDialog::before { display: none; }
   #toast { bottom: 20px; font-size: 11px; padding: 11px 17px; }
 }
 
