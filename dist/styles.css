@@ -1024,6 +1024,10 @@ footer {
    dialogs
    -------------------------------------------------------------------------- */
 
+html:has(dialog[open]), body:has(dialog[open]) {
+  overflow: hidden;
+}
+
 dialog {
   width: min(700px, calc(100% - 40px));
   max-height: 88dvh;
@@ -1404,7 +1408,48 @@ dialog h3 {
 }
 
 /* backup */
-#backupDialog { width: min(620px, calc(100% - 40px)); }
+#backupDialog {
+  width: min(620px, calc(100% - 40px));
+  padding: 0;
+  overflow: hidden;
+}
+.backup-sheet {
+  display: flex;
+  flex-direction: column;
+  max-height: 86dvh;
+  min-height: 0;
+}
+#backupDialog .dialog-head {
+  flex: none;
+  padding: 26px 30px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-2);
+  z-index: 2;
+}
+.backup-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 30px 28px;
+  scrollbar-width: thin;
+  scrollbar-color: #d7d1c3 transparent;
+}
+.backup-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.backup-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 99px;
+  background: #d7d1c3 content-box;
+}
+.backup-scroll::-webkit-scrollbar-track {
+  margin-top: 6px;
+  margin-bottom: 14px;
+}
+#backupDialog .dialog-lead {
+  margin: 0 0 16px;
+}
 #backupDialog input[type="file"] {
   width: 100%;
   margin-top: 10px;
@@ -1717,11 +1762,18 @@ dialog h3 {
     width: min(540px, calc(100% - 32px));
     max-height: 86dvh;
     margin: auto;
-    padding: 26px 20px;
+    padding: 0;
+    overflow: hidden;
     border-radius: 22px;
     border-bottom: 1px solid rgba(229, 223, 211, .9);
   }
   #backupDialog::before { display: none; }
+  #backupDialog .dialog-head {
+    padding: 18px 20px 12px;
+  }
+  .backup-scroll {
+    padding: 14px 20px 22px;
+  }
   #toast { bottom: 20px; font-size: 11px; padding: 11px 17px; }
 }
 
