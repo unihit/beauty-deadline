@@ -36,8 +36,11 @@ GET https://script.google.com/macros/s/.../exec?action=ping&token=YOUR_SECRET_TO
 ---
 
 ### 2) 전체 목록 조회 (`GET ?action=list`)
+기본적으로 사용 중/미개봉인 관리 대상 제품만 반환합니다. `status=all` 파라미터를 추가하면 사용 완료·폐기 제품까지 전체 조회할 수 있습니다:
 ```http
 GET https://script.google.com/macros/s/.../exec?action=list&token=YOUR_SECRET_TOKEN
+# 또는 전체(완료/폐기 포함) 조회:
+# GET https://script.google.com/macros/s/.../exec?action=list&token=YOUR_SECRET_TOKEN&status=all
 ```
 **응답:**
 ```json

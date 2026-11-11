@@ -1,5 +1,5 @@
 import {categories,statuses,deadline,today,candidates,paoCandidates,validateProduct} from './dates.js';
-import {all,write} from './db.js';
+import {all,write,setAll} from './db.js';
 import {initGoogleAuth,disconnectGoogle,syncWithDrive,getSyncMeta,recordDeletion,isConnected,getGasUrl,setGasUrl,getGasToken,setGasToken,isGasConnected} from './gdrive.js';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let products=[],editing=null,photo='',ocrPhoto='',quick='',restoreItems=null,busy=false,photoBusy=false,installPrompt,syncTimer=null;
@@ -16,7 +16,7 @@ async function runDriveSync(silent=false){
   try{
     const readOnly=isViewOnlyMode();
     const res=await syncWithDrive(products,{readOnlyPull:readOnly});
-    await write(res.mergedProducts);
+    await setAll(res.mergedProducts);
     await refresh();
     updateGDriveUI();
     if(!silent)toast(readOnly?`구글 드라이브에서 최신 화장대를 가져왔어요 (${res.count}개).`:`구글 드라이브 동기화 완료 (${res.count}개 제품).`);
@@ -74,7 +74,7 @@ function render(){
   for(const k in counts)$('#'+k).textContent=counts[k];
   document.querySelectorAll('[data-quick]').forEach(b=>{const on=b.dataset.quick===quick;b.classList.toggle('is-active',on);b.setAttribute('aria-pressed',String(on));});
   const q=$('#search').value.trim().toLocaleLowerCase();
-  let list=products.filter(p=>{const d=deadline(p),isActive=active.includes(p);return (!q||[p.name,p.brand,p.memo].some(x=>x.toLocaleLowerCase().includes(q)))&&(!$('#categoryFilter').value||p.category===$('#categoryFilter').value)&&(!$('#statusFilter').value||p.status===$('#statusFilter').value)&&(!quick||(isActive&&(quick==='active'||quick==='unknown'&&!d.date||quick==='expired'&&d.days!==null&&d.days<0||quick==='soon'&&d.days!==null&&d.days>=0&&d.days<=30)));});
+  let list=products.filter(p=>{const d=deadline(p),isActive=active.includes(p);return (!q||[p.name,p.brand,p.memo].some(x=>String(x??'').toLocaleLowerCase().includes(q)))&&(!$('#categoryFilter').value||p.category===$('#categoryFilter').value)&&(!$('#statusFilter').value||p.status===$('#statusFilter').value)&&(!quick||(isActive&&(quick==='active'||quick==='unknown'&&!d.date||quick==='expired'&&d.days!==null&&d.days<0||quick==='soon'&&d.days!==null&&d.days>=0&&d.days<=30)));});
   list.sort((a,b)=>$('#sort').value==='new'?b.createdAt.localeCompare(a.createdAt):$('#sort').value==='name'?a.name.localeCompare(b.name,'ko'):(Number(!active.includes(a))-Number(!active.includes(b))||(deadline(a).date||'9999').localeCompare(deadline(b).date||'9999')||a.name.localeCompare(b.name,'ko')));
   $('#count').textContent=list.length+'개';
   $('#quickBar').hidden=!quick;
@@ -190,8 +190,17 @@ function openDetail(id){
     memoSec.hidden=true;
   }
 
+  const isMobile=isMobileDevice(),pcEdit=isPcEditModeEnabled();
+  const hint=$('#detailDialog .detail-hint'),editBtn=$('#detailEditBtn');
+  if(hint)hint.hidden=isMobile||pcEdit;
+  if(editBtn)editBtn.textContent=(isMobile||pcEdit)?'제품 수정하기':'이 제품 임시 수정하기';
+
   $('#detailEditBtn').onclick=()=>{
     $('#detailDialog').close();
+    if(!isMobile&&!pcEdit){
+      setPcEditModeEnabled(true);
+      toast('PC 임시 편집 모드를 켰어요.');
+    }
     openEditor(p.id);
   };
 
@@ -203,7 +212,11 @@ function controls(){ $('#save').disabled=busy||photoBusy;$('#ocr').disabled=busy
 function handleAddProduct(){
   if(isViewOnlyMode()){
     confirmAction('PC에서 제품을 등록할까요?','모바일이 메인 입력 기기입니다. PC에서 임시로 새 제품을 등록하시겠습니까?').then(yes=>{
-      if(yes)openEditor();
+      if(yes){
+        setPcEditModeEnabled(true);
+        toast('PC 임시 편집 모드를 켰어요.');
+        openEditor();
+      }
     });
   }else{
     openEditor();
@@ -262,6 +275,12 @@ $('#cards').onclick=async e=>{
     }else{
       openEditor(b.dataset.edit);
     }
+    return;
+  }
+  const card=e.target.closest('.card');
+  if(card){
+    const editBtn=card.querySelector('[data-edit]');
+    if(editBtn)openDetail(editBtn.dataset.edit);
   }
 };
 for(const s of ['#search','#categoryFilter','#sort'])$(s).addEventListener('input',render);

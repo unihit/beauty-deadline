@@ -63,7 +63,21 @@ export function recordDeletion(id) {
 
 export function getDeletedIds() {
   try {
-    return JSON.parse(localStorage.getItem('beauty_deleted_ids') || '{}');
+    const raw = JSON.parse(localStorage.getItem('beauty_deleted_ids') || '{}');
+    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    const pruned = {};
+    let changed = false;
+    for (const [id, time] of Object.entries(raw)) {
+      if (new Date(time).getTime() > cutoff) {
+        pruned[id] = time;
+      } else {
+        changed = true;
+      }
+    }
+    if (changed) {
+      localStorage.setItem('beauty_deleted_ids', JSON.stringify(pruned));
+    }
+    return pruned;
   } catch {
     return {};
   }

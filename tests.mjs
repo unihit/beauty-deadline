@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {addMonths,deadline,validDate,candidates,paoCandidates,validateProduct} from './dist/dates.js';
-import {mergeProducts} from './dist/gdrive.js';
+import {mergeProducts,getDeletedIds} from './dist/gdrive.js';
 
 test('month ends and leap years',()=>{assert.equal(addMonths('2024-01-31',1),'2024-02-29');assert.equal(addMonths('2023-01-31',1),'2023-02-28');assert.equal(addMonths('2024-02-29',12),'2025-02-28');assert.equal(addMonths('2026-08-31',6),'2027-02-28');assert.equal(addMonths('2026-12-31',3),'2027-03-31')});
 test('invalid dates rejected',()=>{for(const d of ['2026-02-29','2026-04-31','2026-00-01','26-01-01',''])assert.equal(validDate(d),false)});
@@ -65,17 +65,33 @@ test('Google Drive merge logic respects updated timestamps and tombstones', () =
   assert.equal(merged.some(x => x.id === '3'), false);
 });
 
+test('tombstone pruning in getDeletedIds preserves fresh and drops expired', () => {
+  const now = Date.now();
+  const fresh = new Date(now - 10 * 86400000).toISOString();
+  const expired = new Date(now - 100 * 86400000).toISOString();
+  const storage = {
+    'beauty_deleted_ids': JSON.stringify({ 'recent-del': fresh, 'old-del': expired })
+  };
+  globalThis.localStorage = {
+    getItem: k => storage[k] || null,
+    setItem: (k, v) => storage[k] = v
+  };
+  const result = getDeletedIds();
+  assert.equal(result['recent-del'], fresh);
+  assert.equal(result['old-del'], undefined);
+});
+
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 test('service worker isolates app paths and cache namespaces',async()=>{
   const handlers={},deleted=[],scope='https://unihit.github.io/beauty-deadline/';
   const prefix='beauty-deadline:'+scope+':';
   const context={URL,Response,self:{registration:{scope},addEventListener:(name,fn)=>handlers[name]=fn,clients:{claim:async()=>{}},skipWaiting:async()=>{}},
-    caches:{open:async()=>({put:async()=>{}}),keys:async()=>['beauty-v3','other-app',prefix+'v5',prefix+'v6',prefix+'v7',prefix+'v8',prefix+'v9',prefix+'v10',prefix+'v11',prefix+'v12',prefix+'v13'],delete:async key=>deleted.push(key)}};
+    caches:{open:async()=>({put:async()=>{}}),keys:async()=>['beauty-v3','other-app',prefix+'v5',prefix+'v6',prefix+'v7',prefix+'v8',prefix+'v9',prefix+'v10',prefix+'v11',prefix+'v12',prefix+'v13',prefix+'v14'],delete:async key=>deleted.push(key)}};
   vm.runInNewContext(readFileSync(new URL('./dist/sw.js',import.meta.url),'utf8'),context);
   let pending;
   handlers.activate({waitUntil:p=>pending=p});await pending;
-  assert.deepEqual(deleted,[prefix+'v5',prefix+'v6',prefix+'v7',prefix+'v8',prefix+'v9',prefix+'v10',prefix+'v11',prefix+'v12']);
+  assert.deepEqual(deleted,[prefix+'v5',prefix+'v6',prefix+'v7',prefix+'v8',prefix+'v9',prefix+'v10',prefix+'v11',prefix+'v12',prefix+'v13']);
   for(const url of ['https://unihit.github.io/ssen-ledger/','https://unihit.github.io/beauty-deadline-other/','https://example.com/beauty-deadline/']){
     let intercepted=false;
     handlers.fetch({request:{method:'GET',url},respondWith:()=>intercepted=true});

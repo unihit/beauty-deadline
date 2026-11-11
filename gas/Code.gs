@@ -78,12 +78,16 @@ function doGet(e) {
 
     // 4. 전체 목록 조회 (list)
     if (action === 'list') {
+      const includeAll = params.status === 'all';
+      const targetProducts = includeAll ? data.products : activeProducts;
       const counts = { total: activeProducts.length, expired: 0, soon: 0, unknown: 0 };
-      const items = activeProducts.map(p => {
+      const items = targetProducts.map(p => {
         const d = calculateDeadline(p, todayStr);
-        if (!d.date) counts.unknown++;
-        else if (d.days < 0) counts.expired++;
-        else if (d.days <= 30) counts.soon++;
+        if (!['사용 완료', '폐기'].includes(p.status)) {
+          if (!d.date) counts.unknown++;
+          else if (d.days < 0) counts.expired++;
+          else if (d.days <= 30) counts.soon++;
+        }
         return formatProductOutput(p, d);
       });
 
@@ -91,7 +95,7 @@ function doGet(e) {
         success: true,
         action: 'list',
         summary: counts,
-        syncedAt: data.syncedAt,
+        syncedAt: data.syncedAt || null,
         products: items
       });
     }
@@ -437,22 +441,37 @@ function doPost(e) {
       const clientDeleted = (typeof payload.deletedIds === 'object' && payload.deletedIds) ? payload.deletedIds : {};
       const readOnlyPull = Boolean(payload.readOnlyPull);
 
-      // tombstones 병합
-      const allDeleted = { ...(data.deletedIds || {}), ...clientDeleted };
+      // tombstones 90일 만료 정리 및 병합
+      const cutoff = Date.now() - (90 * 24 * 60 * 60 * 1000);
+      const allDeleted = {};
+      const combined = { ...(data.deletedIds || {}), ...clientDeleted };
+      for (const id in combined) {
+        if (new Date(combined[id]).getTime() > cutoff) {
+          allDeleted[id] = combined[id];
+        }
+      }
       data.deletedIds = allDeleted;
 
-      let merged = mergeProductsList(clientProducts, data.products, allDeleted);
-
-      if (!readOnlyPull) {
-        data.products = merged;
-        data.syncedAt = nowStr;
-        saveData(data);
+      if (readOnlyPull) {
+        return jsonResponse({
+          success: true,
+          action: 'sync',
+          readOnly: true,
+          syncedAt: data.syncedAt || null,
+          count: data.products.length,
+          products: data.products
+        });
       }
+
+      let merged = mergeProductsList(clientProducts, data.products, allDeleted);
+      data.products = merged;
+      data.syncedAt = nowStr;
+      saveData(data);
 
       return jsonResponse({
         success: true,
         action: 'sync',
-        readOnly: readOnlyPull,
+        readOnly: false,
         syncedAt: data.syncedAt,
         count: merged.length,
         products: merged

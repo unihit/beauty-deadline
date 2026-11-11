@@ -754,6 +754,7 @@ h2 {
   border-radius: 20px;
   background: var(--card);
   overflow: hidden;
+  cursor: pointer;
   transition: transform .4s var(--ease), box-shadow .4s, border-color .4s;
 }
 .card:hover {
