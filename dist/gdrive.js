@@ -1,5 +1,5 @@
-// Google Drive AppData Folder Sync Module for beauty-deadline
-// Uses Google Identity Services (GIS v2) + Drive REST API v3
+// Google Drive AppData & Google Apps Script Sync Module for beauty-deadline
+// Supports Google Apps Script Cloud API (zero-config/no-OAuth-client) or direct GIS v2 OAuth
 
 const DRIVE_FILE_NAME = 'beauty-deadline-data.json';
 const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
@@ -7,6 +7,28 @@ const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 let tokenClient = null;
 let accessToken = null;
 let tokenExpiresAt = 0;
+
+export function getGasUrl() {
+  return localStorage.getItem('beauty_gas_url') || '';
+}
+
+export function setGasUrl(url) {
+  if (url) localStorage.setItem('beauty_gas_url', url.trim());
+  else localStorage.removeItem('beauty_gas_url');
+}
+
+export function getGasToken() {
+  return localStorage.getItem('beauty_gas_token') || 'beauty-secret-2026';
+}
+
+export function setGasToken(tok) {
+  if (tok) localStorage.setItem('beauty_gas_token', tok.trim());
+  else localStorage.removeItem('beauty_gas_token');
+}
+
+export function isGasConnected() {
+  return Boolean(getGasUrl());
+}
 
 export function getStoredClientId() {
   return localStorage.getItem('beauty_gdrive_client_id') || '';
@@ -18,14 +40,17 @@ export function setStoredClientId(id) {
 }
 
 export function isConnected() {
-  return Boolean(accessToken && Date.now() < tokenExpiresAt);
+  return Boolean(isGasConnected() || (accessToken && Date.now() < tokenExpiresAt));
 }
 
 export function getSyncMeta() {
   return {
     lastSyncedAt: localStorage.getItem('beauty_last_synced_at') || null,
     accountEmail: localStorage.getItem('beauty_gdrive_email') || null,
-    clientId: getStoredClientId()
+    clientId: getStoredClientId(),
+    gasUrl: getGasUrl(),
+    gasToken: getGasToken(),
+    provider: isGasConnected() ? 'gas' : accessToken ? 'oauth' : null
   };
 }
 
@@ -182,8 +207,49 @@ async function uploadData(fileId, payload) {
   }
 }
 
-// Sync Flow (Supports full 2-way sync or read-only pull for PC viewer)
+export async function syncWithGas(localProducts, options = {}) {
+  const url = getGasUrl();
+  const token = getGasToken();
+  if (!url) throw new Error('구글 Apps Script API URL이 설정되지 않았습니다.');
+
+  const readOnlyPull = Boolean(options.readOnlyPull);
+  const deletedIds = getDeletedIds();
+
+  const payload = {
+    token: token,
+    action: 'sync',
+    readOnlyPull: readOnlyPull,
+    products: localProducts,
+    deletedIds: deletedIds
+  };
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) throw new Error(`동기화 서버 응답 오류 (${res.status})`);
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || '동기화 처리에 실패했습니다.');
+
+  const nowStr = new Date().toISOString();
+  localStorage.setItem('beauty_last_synced_at', nowStr);
+
+  return {
+    mergedProducts: data.products || localProducts,
+    syncedAt: nowStr,
+    count: (data.products || []).length,
+    readOnly: readOnlyPull
+  };
+}
+
+// Sync Flow (Supports GAS Cloud API or direct GIS v2 OAuth)
 export async function syncWithDrive(localProducts, options = {}) {
+  if (isGasConnected()) {
+    return await syncWithGas(localProducts, options);
+  }
+
   const readOnlyPull = Boolean(options.readOnlyPull);
   const remoteMeta = await findRemoteFile();
   let merged = [...localProducts];

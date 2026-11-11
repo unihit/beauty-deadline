@@ -306,20 +306,23 @@
 
       <div class="sheet-section gdrive-section">
         <div class="gdrive-head">
-          <h3>구글 드라이브 클라우드 동기화</h3>
+          <h3>구글 클라우드(Apps Script) 실시간 동기화</h3>
           <span id="gdriveBadge" class="badge unknown">연결 안 됨</span>
         </div>
-        <p>내 구글 드라이브의 전용 숨김 폴더(AppData)와 동기화하여 다른 폰이나 PC에서도 같은 화장대를 사용할 수 있어요.</p>
+        <p>Google Apps Script 웹 앱 URL과 보안 토큰을 입력하면 내 구글 드라이브(뷰티기한 폴더)와 실시간으로 동기화되어 챗봇(MUSE)과 완벽하게 연동됩니다.</p>
 
         <div id="gdriveConfigArea">
-          <label class="gdrive-label">Google OAuth 클라이언트 ID
-            <input id="gdriveClientId" type="text" placeholder="예: 123456789-xxx.apps.googleusercontent.com" spellcheck="false">
+          <label class="gdrive-label">Apps Script 웹 앱 URL
+            <input id="gasUrlInput" type="url" placeholder="예: https://script.google.com/macros/s/.../exec" spellcheck="false">
+          </label>
+          <label class="gdrive-label">API 보안 토큰 (기본: beauty-secret-2026)
+            <input id="gasTokenInput" type="text" placeholder="예: beauty-secret-2026" spellcheck="false">
           </label>
           <small class="hint">최초 1회 설정하면 이 브라우저에 안전하게 보관됩니다.</small>
         </div>
 
         <div class="gdrive-actions">
-          <button id="gdriveConnect" class="secondary" type="button">구글 드라이브 연결</button>
+          <button id="gdriveConnect" class="secondary" type="button">동기화 연결 / 테스트</button>
           <button id="gdriveSyncNow" class="primary" type="button" hidden>지금 동기화</button>
           <button id="gdriveDisconnect" class="quiet" type="button" hidden>연결 해제</button>
         </div>

@@ -1,29 +1,67 @@
 /**
- * 뷰티기한 (Beauty Deadline) - Chatbot & Web API for Google Apps Script
+ * 뷰티기한 (Beauty Deadline) - Cloud & Chatbot API for Google Apps Script
  *
- * 구글 드라이브의 '뷰티기한' 폴더 내 'beauty-deadline-data.json'과 자동 연동됩니다.
- * MUSE, ChatGPT, 슬랙/텔레그램 봇, 또는 뷰티기한 웹/모바일 앱에서 호출할 수 있습니다.
+ * 구글 드라이브 '뷰티기한/beauty-deadline-data.json'과 실시간 연동.
+ * MUSE 챗봇, ChatGPT, 뷰티기한 웹/모바일 앱에서 호출할 수 있는 통합 백엔드 API입니다.
  */
 
 const FOLDER_NAME = '뷰티기한';
 const FILE_NAME = 'beauty-deadline-data.json';
+const DEFAULT_API_TOKEN = 'beauty-secret-2026';
+
+const VALID_CATEGORIES = ['스킨케어', '메이크업', '선케어', '클렌징', '헤어·바디', '향수', '기타'];
+const VALID_STATUSES = ['미개봉', '사용 중', '사용 완료', '폐기'];
 
 // --------------------------------------------------------------------------
-// HTTP 핸들러 (GET / POST)
+// 보안 토큰 및 인증
+// --------------------------------------------------------------------------
+
+function getApiToken() {
+  const prop = PropertiesService.getScriptProperties().getProperty('API_TOKEN');
+  return prop || DEFAULT_API_TOKEN;
+}
+
+function isAuthorized(token) {
+  if (!token || typeof token !== 'string') return false;
+  return token.trim() === getApiToken();
+}
+
+// --------------------------------------------------------------------------
+// HTTP GET 핸들러
 // --------------------------------------------------------------------------
 
 function doGet(e) {
   try {
-    const action = (e && e.parameter && e.parameter.action) || 'list';
+    const params = (e && e.parameter) || {};
+    const token = params.token || '';
+
+    // 1. 인증 검증
+    if (!isAuthorized(token)) {
+      return jsonResponse({
+        success: false,
+        error: '인증 실패: 유효한 token이 필요합니다. (예: ?token=YOUR_TOKEN)'
+      });
+    }
+
+    const action = params.action || 'list';
+
+    // 2. 상태 점검 (ping)
     if (action === 'ping') {
-      return jsonResponse({ success: true, app: 'beauty-deadline-api', version: 1, now: new Date().toISOString() });
+      return jsonResponse({
+        success: true,
+        action: 'ping',
+        app: 'beauty-deadline-api',
+        version: 2,
+        now: new Date().toISOString()
+      });
     }
 
     const data = getOrCreateData();
+    const todayStr = getTodayString();
     const activeProducts = data.products.filter(p => !['사용 완료', '폐기'].includes(p.status));
 
+    // 3. 기한 임박 조회 (expiring)
     if (action === 'expiring') {
-      const todayStr = getTodayString();
       const list = activeProducts
         .map(p => ({ product: p, deadline: calculateDeadline(p, todayStr) }))
         .filter(x => x.deadline.date && x.deadline.days !== null && x.deadline.days <= 30)
@@ -31,58 +69,58 @@ function doGet(e) {
 
       return jsonResponse({
         success: true,
+        action: 'expiring',
         count: list.length,
-        items: list.map(x => ({
-          id: x.product.id,
-          name: x.product.name,
-          brand: x.product.brand,
-          status: x.product.status,
-          targetDate: x.deadline.date,
-          daysLeft: x.deadline.days,
-          label: x.deadline.label,
-          reason: x.deadline.reason
-        }))
+        items: list.map(x => formatProductOutput(x.product, x.deadline))
       });
     }
 
-    // Default: list all products with summary counts
-    const todayStr = getTodayString();
-    const counts = { total: activeProducts.length, expired: 0, soon: 0, unknown: 0 };
-    const items = activeProducts.map(p => {
-      const d = calculateDeadline(p, todayStr);
-      if (!d.date) counts.unknown++;
-      else if (d.days < 0) counts.expired++;
-      else if (d.days <= 30) counts.soon++;
-      return {
-        id: p.id,
-        name: p.name,
-        brand: p.brand || '',
-        category: p.category || '기타',
-        status: p.status,
-        expiry: p.expiry || '',
-        opened: p.opened || '',
-        months: p.months || null,
-        memo: p.memo || '',
-        targetDate: d.date,
-        daysLeft: d.days,
-        label: d.label,
-        reason: d.reason,
-        updatedAt: p.updatedAt
-      };
+    // 4. 전체 목록 조회 (list)
+    if (action === 'list') {
+      const counts = { total: activeProducts.length, expired: 0, soon: 0, unknown: 0 };
+      const items = activeProducts.map(p => {
+        const d = calculateDeadline(p, todayStr);
+        if (!d.date) counts.unknown++;
+        else if (d.days < 0) counts.expired++;
+        else if (d.days <= 30) counts.soon++;
+        return formatProductOutput(p, d);
+      });
+
+      return jsonResponse({
+        success: true,
+        action: 'list',
+        summary: counts,
+        syncedAt: data.syncedAt,
+        products: items
+      });
+    }
+
+    // 5. 알 수 없는 action은 에러 반환 (조용히 list 반환 금지)
+    return jsonResponse({
+      success: false,
+      error: `알 수 없는 GET action입니다: "${action}". (지원: ping, list, expiring)`
     });
 
-    return jsonResponse({
-      success: true,
-      summary: counts,
-      syncedAt: data.syncedAt,
-      products: items
-    });
   } catch (err) {
     return jsonResponse({ success: false, error: err.toString() });
   }
 }
 
+// --------------------------------------------------------------------------
+// HTTP POST 핸들러
+// --------------------------------------------------------------------------
+
 function doPost(e) {
+  // 동시성 제어: LockService로 동시 저장 시 충돌 방지 (최대 10초 대기)
+  const lock = LockService.getScriptLock();
+  const hasLock = lock.tryLock(10000);
+  if (!hasLock) {
+    return jsonResponse({
+      success: false,
+      error: '현재 다른 작업이 데이터베이스를 처리 중입니다. 잠시 후 다시 시도해 주세요. (Lock Timeout)'
+    });
+  }
+
   try {
     let payload = {};
     if (e && e.postData && e.postData.contents) {
@@ -95,28 +133,92 @@ function doPost(e) {
       payload = e.parameter;
     }
 
-    const action = payload.action || 'add';
+    // 1. 인증 검증
+    const token = payload.token || (e && e.parameter && e.parameter.token) || '';
+    if (!isAuthorized(token)) {
+      return jsonResponse({
+        success: false,
+        error: '인증 실패: payload에 유효한 token이 필요합니다. (예: { "token": "..." })'
+      });
+    }
+
+    const action = payload.action;
+    if (!action) {
+      return jsonResponse({
+        success: false,
+        error: 'action 필드가 누락되었습니다. (지원: add, update, open, finish, discard, delete, sync)'
+      });
+    }
+
     const data = getOrCreateData();
     const todayStr = getTodayString();
+    const nowStr = new Date().toISOString();
 
-    // 1. 제품 추가
+    // ------------------------------------------------------------------------
+    // (1) 제품 등록 (add)
+    // ------------------------------------------------------------------------
     if (action === 'add') {
       const name = (payload.name || '').trim();
-      if (!name) throw new Error('제품명(name)은 필수입니다.');
+      if (!name) return jsonResponse({ success: false, error: '제품명(name)은 필수입니다.' });
+      if (name.length > 120) return jsonResponse({ success: false, error: '제품명은 최대 120자까지 가능합니다.' });
 
-      const nowStr = new Date().toISOString();
+      const category = payload.category || '스킨케어';
+      if (!VALID_CATEGORIES.includes(category)) {
+        return jsonResponse({
+          success: false,
+          error: `유효하지 않은 카테고리입니다: "${category}". 지원 카테고리: ${VALID_CATEGORIES.join(', ')}`
+        });
+      }
+
       const status = payload.status || (payload.opened ? '사용 중' : '미개봉');
+      if (!VALID_STATUSES.includes(status)) {
+        return jsonResponse({
+          success: false,
+          error: `유효하지 않은 상태입니다: "${status}". 지원 상태: ${VALID_STATUSES.join(', ')}`
+        });
+      }
+
+      const expiry = (payload.expiry || '').trim();
+      if (expiry && !isValidDateString(expiry)) {
+        return jsonResponse({ success: false, error: `유효하지 않은 사용기한(expiry) 날짜 형식입니다: "${expiry}". (YYYY-MM-DD 필요)` });
+      }
+
+      const opened = (payload.opened || '').trim();
+      if (opened && !isValidDateString(opened)) {
+        return jsonResponse({ success: false, error: `유효하지 않은 개봉일(opened) 날짜 형식입니다: "${opened}". (YYYY-MM-DD 필요)` });
+      }
+
+      let months = null;
+      if (payload.months !== undefined && payload.months !== null && payload.months !== '') {
+        const parsedM = parseInt(payload.months, 10);
+        if (isNaN(parsedM) || parsedM < 1 || parsedM > 120) {
+          return jsonResponse({ success: false, error: '개봉 후 권장기간(months)은 1~120 사이의 정수여야 합니다.' });
+        }
+        months = parsedM;
+      }
+
+      // 사진 용량 및 형식 검증 (최대 2.5MB)
+      let photo = (payload.photo || '').trim();
+      if (photo) {
+        if (!photo.startsWith('data:image/')) {
+          return jsonResponse({ success: false, error: '사진(photo)은 data:image/ 형식의 base64 데이터만 허용됩니다.' });
+        }
+        if (photo.length > 2800000) {
+          return jsonResponse({ success: false, error: '사진 용량이 너무 큽니다. (최대 2MB 이하 권장)' });
+        }
+      }
+
       const newProduct = {
         id: Utilities.getUuid(),
         name: name,
-        brand: (payload.brand || '').trim(),
-        category: payload.category || '스킨케어',
+        brand: (payload.brand || '').trim().slice(0, 120),
+        category: category,
         status: status,
-        expiry: payload.expiry || '',
-        opened: payload.opened || '',
-        months: payload.months ? parseInt(payload.months, 10) : null,
-        memo: payload.memo || '',
-        photo: payload.photo || '',
+        expiry: expiry,
+        opened: opened,
+        months: months,
+        memo: (payload.memo || '').trim().slice(0, 10000),
+        photo: photo,
         createdAt: nowStr,
         updatedAt: nowStr
       };
@@ -128,109 +230,277 @@ function doPost(e) {
       const d = calculateDeadline(newProduct, todayStr);
       return jsonResponse({
         success: true,
+        action: 'add',
         message: `‘${name}’ 제품을 화장대에 등록했어요.`,
-        product: {
-          ...newProduct,
-          targetDate: d.date,
-          daysLeft: d.days,
-          label: d.label,
-          reason: d.reason
-        }
+        product: formatProductOutput(newProduct, d)
       });
     }
 
-    // 2. 제품 개봉
-    if (action === 'open') {
-      const targetQuery = (payload.name || payload.id || '').trim().toLowerCase();
-      if (!targetQuery) throw new Error('개봉할 제품명(name) 또는 ID가 필요합니다.');
+    // ------------------------------------------------------------------------
+    // (2) 제품 수정 (update)
+    // ------------------------------------------------------------------------
+    if (action === 'update') {
+      const id = (payload.id || '').trim();
+      if (!id) return jsonResponse({ success: false, error: '수정(update)할 제품의 ID(id)는 필수입니다.' });
 
-      const openedDate = payload.opened || todayStr;
-      const found = findProduct(data.products, targetQuery);
-      if (!found) throw new Error(`‘${payload.name || payload.id}’ 제품을 찾지 못했어요.`);
+      const product = data.products.find(p => p.id === id);
+      if (!product) return jsonResponse({ success: false, error: `ID가 "${id}"인 제품을 찾지 못했어요.` });
+
+      if (payload.name !== undefined) {
+        const name = String(payload.name).trim();
+        if (!name) return jsonResponse({ success: false, error: '제품명(name)은 비워둘 수 없습니다.' });
+        product.name = name.slice(0, 120);
+      }
+      if (payload.brand !== undefined) product.brand = String(payload.brand).trim().slice(0, 120);
+      if (payload.category !== undefined) {
+        if (!VALID_CATEGORIES.includes(payload.category)) {
+          return jsonResponse({ success: false, error: `유효하지 않은 카테고리입니다: "${payload.category}". 지원: ${VALID_CATEGORIES.join(', ')}` });
+        }
+        product.category = payload.category;
+      }
+      if (payload.status !== undefined) {
+        if (!VALID_STATUSES.includes(payload.status)) {
+          return jsonResponse({ success: false, error: `유효하지 않은 상태입니다: "${payload.status}". 지원: ${VALID_STATUSES.join(', ')}` });
+        }
+        product.status = payload.status;
+      }
+      if (payload.expiry !== undefined) {
+        const exp = String(payload.expiry).trim();
+        if (exp && !isValidDateString(exp)) return jsonResponse({ success: false, error: `유효하지 않은 사용기한: "${exp}"` });
+        product.expiry = exp;
+      }
+      if (payload.opened !== undefined) {
+        const op = String(payload.opened).trim();
+        if (op && !isValidDateString(op)) return jsonResponse({ success: false, error: `유효하지 않은 개봉일: "${op}"` });
+        product.opened = op;
+      }
+      if (payload.months !== undefined) {
+        if (payload.months === null || payload.months === '') product.months = null;
+        else {
+          const m = parseInt(payload.months, 10);
+          if (isNaN(m) || m < 1 || m > 120) return jsonResponse({ success: false, error: '개봉 후 기간은 1~120 사이 정수여야 합니다.' });
+          product.months = m;
+        }
+      }
+      if (payload.memo !== undefined) product.memo = String(payload.memo).trim().slice(0, 10000);
+
+      product.updatedAt = nowStr;
+      data.syncedAt = nowStr;
+      saveData(data);
+
+      const d = calculateDeadline(product, todayStr);
+      return jsonResponse({
+        success: true,
+        action: 'update',
+        message: `‘${product.name}’ 정보를 수정했어요.`,
+        product: formatProductOutput(product, d)
+      });
+    }
+
+    // ------------------------------------------------------------------------
+    // (3) 제품 개봉 (open)
+    // ------------------------------------------------------------------------
+    if (action === 'open') {
+      const id = (payload.id || '').trim();
+      const name = (payload.name || '').trim();
+      if (!id && !name) return jsonResponse({ success: false, error: '개봉할 제품의 ID(id) 또는 제품명(name)이 필요합니다.' });
+
+      const target = resolveTargetProduct(data.products, id, name, true);
+      if (!target.success) return jsonResponse(target);
+
+      const found = target.product;
+      const openedDate = (payload.opened || todayStr).trim();
+      if (!isValidDateString(openedDate)) {
+        return jsonResponse({ success: false, error: `유효하지 않은 개봉일 날짜 형식입니다: "${openedDate}"` });
+      }
 
       found.status = '사용 중';
       found.opened = openedDate;
-      found.updatedAt = new Date().toISOString();
-      data.syncedAt = found.updatedAt;
+      found.updatedAt = nowStr;
+      data.syncedAt = nowStr;
       saveData(data);
 
       const d = calculateDeadline(found, todayStr);
       return jsonResponse({
         success: true,
+        action: 'open',
         message: `‘${found.name}’을(를) 사용 중(개봉일: ${openedDate})으로 기록했어요.`,
-        product: {
-          ...found,
-          targetDate: d.date,
-          daysLeft: d.days,
-          label: d.label,
-          reason: d.reason
-        }
+        product: formatProductOutput(found, d)
       });
     }
 
-    // 3. 사용 완료 처리
+    // ------------------------------------------------------------------------
+    // (4) 사용 완료 처리 (finish)
+    // ------------------------------------------------------------------------
     if (action === 'finish') {
-      const targetQuery = (payload.name || payload.id || '').trim().toLowerCase();
-      if (!targetQuery) throw new Error('완료할 제품명(name) 또는 ID가 필요합니다.');
+      const id = (payload.id || '').trim();
+      const name = (payload.name || '').trim();
+      if (!id && !name) return jsonResponse({ success: false, error: '완료할 제품의 ID(id) 또는 정확한 제품명(name)이 필요합니다.' });
 
-      const found = findProduct(data.products, targetQuery);
-      if (!found) throw new Error(`‘${payload.name || payload.id}’ 제품을 찾지 못했어요.`);
+      const target = resolveTargetProduct(data.products, id, name, false); // 정확 일치만
+      if (!target.success) return jsonResponse(target);
 
+      const found = target.product;
       found.status = '사용 완료';
-      found.updatedAt = new Date().toISOString();
-      data.syncedAt = found.updatedAt;
+      found.updatedAt = nowStr;
+      data.syncedAt = nowStr;
       saveData(data);
 
+      const d = calculateDeadline(found, todayStr);
       return jsonResponse({
         success: true,
-        message: `‘${found.name}’ 사용 완료를 기록했어요.`
+        action: 'finish',
+        message: `‘${found.name}’ 사용 완료를 기록했어요.`,
+        product: formatProductOutput(found, d)
       });
     }
 
-    // 4. 제품 삭제
-    if (action === 'delete') {
-      const targetQuery = (payload.name || payload.id || '').trim().toLowerCase();
-      if (!targetQuery) throw new Error('삭제할 제품명(name) 또는 ID가 필요합니다.');
+    // ------------------------------------------------------------------------
+    // (5) 제품 폐기 처리 (discard)
+    // ------------------------------------------------------------------------
+    if (action === 'discard') {
+      const id = (payload.id || '').trim();
+      const name = (payload.name || '').trim();
+      if (!id && !name) return jsonResponse({ success: false, error: '폐기할 제품의 ID(id) 또는 정확한 제품명(name)이 필요합니다.' });
 
-      const index = data.products.findIndex(p => p.id === targetQuery || p.name.toLowerCase().includes(targetQuery));
-      if (index === -1) throw new Error(`‘${payload.name || payload.id}’ 제품을 찾지 못했어요.`);
+      const target = resolveTargetProduct(data.products, id, name, false); // 정확 일치만
+      if (!target.success) return jsonResponse(target);
+
+      const found = target.product;
+      found.status = '폐기';
+      found.updatedAt = nowStr;
+      data.syncedAt = nowStr;
+      saveData(data);
+
+      const d = calculateDeadline(found, todayStr);
+      return jsonResponse({
+        success: true,
+        action: 'discard',
+        message: `‘${found.name}’ 제품을 폐기 처리했어요.`,
+        product: formatProductOutput(found, d)
+      });
+    }
+
+    // ------------------------------------------------------------------------
+    // (6) 제품 삭제 (delete - 오삭제 방지를 위해 ID 필수)
+    // ------------------------------------------------------------------------
+    if (action === 'delete') {
+      const id = (payload.id || '').trim();
+      if (!id) {
+        return jsonResponse({
+          success: false,
+          error: '삭제(delete)는 데이터 손실 방지를 위해 제품 ID(id)가 필수입니다. 이름으로의 삭제는 허용되지 않습니다.'
+        });
+      }
+
+      const index = data.products.findIndex(p => p.id === id);
+      if (index === -1) {
+        return jsonResponse({ success: false, error: `ID가 "${id}"인 제품을 찾지 못했어요.` });
+      }
 
       const deleted = data.products.splice(index, 1)[0];
       data.deletedIds = data.deletedIds || {};
-      data.deletedIds[deleted.id] = new Date().toISOString();
-      data.syncedAt = new Date().toISOString();
+      data.deletedIds[deleted.id] = nowStr;
+      data.syncedAt = nowStr;
       saveData(data);
 
       return jsonResponse({
         success: true,
-        message: `‘${deleted.name}’ 제품을 화장대에서 삭제했어요.`
+        action: 'delete',
+        message: `‘${deleted.name}’ 제품을 화장대에서 완전히 삭제했어요.`,
+        deletedId: deleted.id
       });
     }
 
-    // 5. 웹앱과의 양방향 동기화
+    // ------------------------------------------------------------------------
+    // (7) 웹/모바일 앱과의 실시간 양방향 동기화 (sync)
+    // ------------------------------------------------------------------------
     if (action === 'sync') {
-      const clientProducts = payload.products || [];
-      const merged = mergeProductsList(clientProducts, data.products, data.deletedIds || {});
-      data.products = merged;
-      data.syncedAt = new Date().toISOString();
-      saveData(data);
+      const clientProducts = Array.isArray(payload.products) ? payload.products : [];
+      const clientDeleted = (typeof payload.deletedIds === 'object' && payload.deletedIds) ? payload.deletedIds : {};
+      const readOnlyPull = Boolean(payload.readOnlyPull);
+
+      // tombstones 병합
+      const allDeleted = { ...(data.deletedIds || {}), ...clientDeleted };
+      data.deletedIds = allDeleted;
+
+      let merged = mergeProductsList(clientProducts, data.products, allDeleted);
+
+      if (!readOnlyPull) {
+        data.products = merged;
+        data.syncedAt = nowStr;
+        saveData(data);
+      }
 
       return jsonResponse({
         success: true,
+        action: 'sync',
+        readOnly: readOnlyPull,
         syncedAt: data.syncedAt,
         count: merged.length,
         products: merged
       });
     }
 
-    throw new Error(`알 수 없는 동작(action: ${action})입니다.`);
+    return jsonResponse({
+      success: false,
+      error: `알 수 없는 POST action입니다: "${action}". (지원: add, update, open, finish, discard, delete, sync)`
+    });
+
   } catch (err) {
     return jsonResponse({ success: false, error: err.toString() });
+  } finally {
+    lock.releaseLock();
   }
 }
 
 // --------------------------------------------------------------------------
-// 데이터베이스 및 구글 드라이브 파일 입출력
+// 검색 및 모호성 해결 (Exact vs Partial Match Resolver)
+// --------------------------------------------------------------------------
+
+function resolveTargetProduct(products, id, name, allowPartialIfSingle) {
+  // 1. ID가 주어지면 ID로 직접 검색
+  if (id) {
+    const p = products.find(x => x.id === id);
+    if (!p) return { success: false, error: `ID가 "${id}"인 제품을 찾지 못했어요.` };
+    return { success: true, product: p };
+  }
+
+  const query = name.toLowerCase().trim();
+
+  // 2. 정확 일치 검색 (대소문자 무시)
+  const exactMatches = products.filter(x => x.name.toLowerCase().trim() === query && !['사용 완료', '폐기'].includes(x.status));
+  if (exactMatches.length === 1) {
+    return { success: true, product: exactMatches[0] };
+  }
+  if (exactMatches.length > 1) {
+    return {
+      success: false,
+      error: `‘${name}’과(와) 정확히 일치하는 제품이 ${exactMatches.length}개 있습니다. 고유 ID(id)를 지정해 주세요.`,
+      candidates: exactMatches.map(p => ({ id: p.id, name: p.name, brand: p.brand, status: p.status }))
+    };
+  }
+
+  // 3. 부분 일치 검색 허용 시 (open 전용)
+  if (allowPartialIfSingle) {
+    const partialMatches = products.filter(x => x.name.toLowerCase().includes(query) && !['사용 완료', '폐기'].includes(x.status));
+    if (partialMatches.length === 1) {
+      return { success: true, product: partialMatches[0] };
+    }
+    if (partialMatches.length > 1) {
+      return {
+        success: false,
+        error: `‘${name}’ 검색어에 해당하는 제품이 여러 개 검색되었습니다. 더 구체적인 제품명 또는 고유 ID(id)를 지정해 주세요.`,
+        candidates: partialMatches.map(p => ({ id: p.id, name: p.name, brand: p.brand, status: p.status }))
+      };
+    }
+  }
+
+  return { success: false, error: `‘${name}’에 해당하는 활성 제품을 찾지 못했어요.` };
+}
+
+// --------------------------------------------------------------------------
+// 구글 드라이브 파일 입출력
 // --------------------------------------------------------------------------
 
 function getFolder() {
@@ -264,7 +534,7 @@ function getOrCreateData() {
 
   return {
     app: 'beauty-deadline',
-    version: 1,
+    version: 2,
     syncedAt: new Date().toISOString(),
     deletedIds: {},
     products: []
@@ -281,20 +551,6 @@ function saveData(data) {
   } else {
     folder.createFile(FILE_NAME, jsonString, MimeType.PLAIN_TEXT);
   }
-}
-
-function findProduct(products, query) {
-  // 1. 정확한 ID 일치
-  let p = products.find(x => x.id === query);
-  if (p) return p;
-  // 2. 정확한 이름 일치
-  p = products.find(x => x.name.toLowerCase() === query);
-  if (p) return p;
-  // 3. 이름 부분 일치 (사용 중인 것 우선)
-  p = products.find(x => x.name.toLowerCase().includes(query) && x.status === '사용 중');
-  if (p) return p;
-  // 4. 이름 부분 일치 (아무거나)
-  return products.find(x => x.name.toLowerCase().includes(query));
 }
 
 function mergeProductsList(localList, remoteList, deletedMap) {
@@ -318,76 +574,107 @@ function mergeProductsList(localList, remoteList, deletedMap) {
 }
 
 // --------------------------------------------------------------------------
-// 유통기한 및 권장기간 계산 엔진
+// 날짜 검증 및 유통기한 계산 엔진 (dates.js 100% 동일 구현)
 // --------------------------------------------------------------------------
 
+function isValidDateString(s) {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s + 'T00:00:00Z');
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s && parseInt(s.slice(0, 4), 10) >= 1900;
+}
+
 function addMonthsToDate(dateStr, months) {
+  if (!isValidDateString(dateStr) || !Number.isInteger(months) || months < 1 || months > 120) return null;
   const parts = dateStr.split('-');
   const y = parseInt(parts[0], 10);
   const m = parseInt(parts[1], 10);
   const d = parseInt(parts[2], 10);
 
-  const targetM = m + months;
-  const targetY = y + Math.floor((targetM - 1) / 12);
-  const normalizedM = ((targetM - 1) % 12) + 1;
+  // UTC 기반 월말 정규화
+  const targetYearMonth = new Date(Date.UTC(y, m - 1 + months, 1));
+  const targetY = targetYearMonth.getUTCFullYear();
+  const targetM = targetYearMonth.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(targetY, targetM, 0)).getUTCDate();
 
-  const maxDays = daysInMonth(targetY, normalizedM);
-  const targetD = Math.min(d, maxDays);
-
-  return `${targetY}-${String(normalizedM).padStart(2, '0')}-${String(targetD).padStart(2, '0')}`;
-}
-
-function daysInMonth(year, month) {
-  return new Date(year, month, 0).getDate();
+  const finalD = Math.min(d, lastDay);
+  return `${targetY}-${String(targetM).padStart(2, '0')}-${String(finalD).padStart(2, '0')}`;
 }
 
 function getTodayString() {
   const d = new Date();
-  // KST (UTC+9)
   const kst = new Date(d.getTime() + (9 * 60 * 60 * 1000));
   return kst.toISOString().slice(0, 10);
 }
 
 function calculateDeadline(p, todayStr) {
   todayStr = todayStr || getTodayString();
-  const openedDate = p.opened;
-  const months = p.months;
-  const expiryDate = p.expiry;
+  const list = [];
 
-  let paoDate = null;
-  if (openedDate && months && p.status === '사용 중') {
-    paoDate = addMonthsToDate(openedDate, months);
+  if (isValidDateString(p.expiry)) {
+    list.push({ date: p.expiry, reason: '표시된 사용기한' });
   }
 
-  let finalDate = null;
-  let reason = '';
+  const isOpened = p.status && p.status !== '미개봉';
+  const hasOpenedDate = isValidDateString(p.opened);
+  const hasMonths = Boolean(p.months && Number.isInteger(Number(p.months)) && Number(p.months) >= 1 && Number(p.months) <= 120);
 
-  if (paoDate && expiryDate) {
-    if (paoDate <= expiryDate) {
-      finalDate = paoDate;
-      reason = `개봉 후 ${months}개월 기준 (${finalDate})이 표시 기한(${expiryDate})보다 빨라요`;
-    } else {
-      finalDate = expiryDate;
-      reason = `표시 기한 (${expiryDate})이 개봉 후 권장일(${paoDate})보다 빨라요`;
+  if (isOpened && hasOpenedDate && hasMonths) {
+    const calcDate = addMonthsToDate(p.opened, Number(p.months));
+    if (calcDate) {
+      list.push({ date: calcDate, reason: `개봉일 ${p.opened} + ${p.months}개월` });
     }
-  } else if (paoDate) {
-    finalDate = paoDate;
-    reason = `개봉일 기준 ${months}개월 후`;
-  } else if (expiryDate) {
-    finalDate = expiryDate;
-    reason = '용기에 표시된 사용기한';
-  } else {
-    return { date: null, days: null, label: '날짜 확인 필요', reason: '사용기한 또는 개봉일 정보 필요' };
   }
 
-  const diffTime = new Date(finalDate + 'T00:00:00Z') - new Date(todayStr + 'T00:00:00Z');
+  const partialNote = p.status === '사용 중' ? (
+    hasOpenedDate && !hasMonths ? '개봉 후 사용기간 미입력(표시 기한만 반영)' :
+    !hasOpenedDate && hasMonths ? '개봉일 미입력(표시 기한만 반영)' : ''
+  ) : '';
+
+  list.sort((a, b) => a.date.localeCompare(b.date));
+
+  if (!list.length) {
+    const emptyReason = p.status === '사용 중' && hasOpenedDate && !hasMonths ? '개봉 후 사용기간(개월) 또는 표시된 사용기한을 입력하세요.' :
+      p.status === '사용 중' && !hasOpenedDate && hasMonths ? '개봉일 또는 표시된 사용기한을 입력하세요.' :
+      '표시된 사용기한 또는 개봉일과 개봉 후 사용기간을 입력하세요.';
+    return { date: null, days: null, label: '날짜 확인 필요', reason: emptyReason, partial: Boolean(partialNote) };
+  }
+
+  const first = list[0];
+  const diffTime = new Date(first.date + 'T00:00:00Z') - new Date(todayStr + 'T00:00:00Z');
   const days = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  const baseReason = list.map(x => `${x.reason} → ${x.date}`).join(' / ') + (list.length > 1 ? ' · 빠른 날짜 적용' : '');
 
-  let label = '여유 있어요';
-  if (days < 0) label = '기한 경과';
-  else if (days <= 30) label = '30일 이내';
+  const label = days < 0 ? '기한 경과' : days <= 30 ? '30일 이내' : '여유 있어요';
+  return {
+    date: first.date,
+    days: days,
+    label: label,
+    reason: baseReason + (partialNote ? ` · ${partialNote}` : ''),
+    partial: Boolean(partialNote)
+  };
+}
 
-  return { date: finalDate, days: days, label: label, reason: reason };
+function formatProductOutput(p, d) {
+  d = d || calculateDeadline(p);
+  return {
+    id: p.id,
+    name: p.name,
+    brand: p.brand || '',
+    category: p.category || '기타',
+    status: p.status || '미개봉',
+    expiry: p.expiry || '',
+    opened: p.opened || '',
+    months: p.months || null,
+    memo: p.memo || '',
+    photo: p.photo || '',
+    targetDate: d.date,
+    daysLeft: d.days,
+    label: d.label,
+    reason: d.reason,
+    partial: Boolean(d.partial),
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt
+  };
 }
 
 function jsonResponse(data) {

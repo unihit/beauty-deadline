@@ -1,6 +1,6 @@
 import {categories,statuses,deadline,today,candidates,paoCandidates,validateProduct} from './dates.js';
 import {all,write} from './db.js';
-import {initGoogleAuth,disconnectGoogle,syncWithDrive,getSyncMeta,recordDeletion,isConnected,getStoredClientId,setStoredClientId} from './gdrive.js';
+import {initGoogleAuth,disconnectGoogle,syncWithDrive,getSyncMeta,recordDeletion,isConnected,getGasUrl,setGasUrl,getGasToken,setGasToken,isGasConnected} from './gdrive.js';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let products=[],editing=null,photo='',ocrPhoto='',quick='',restoreItems=null,busy=false,photoBusy=false,installPrompt,syncTimer=null;
 const form=$('#productForm'),el=n=>form.elements.namedItem(n);
@@ -29,10 +29,11 @@ async function runDriveSync(silent=false){
 }
 function updateGDriveUI(){
   const meta=getSyncMeta(),connected=isConnected(),badge=$('#gdriveBadge');
-  if($('#gdriveClientId'))$('#gdriveClientId').value=meta.clientId||'';
+  if($('#gasUrlInput'))$('#gasUrlInput').value=meta.gasUrl||'';
+  if($('#gasTokenInput'))$('#gasTokenInput').value=meta.gasToken||'beauty-secret-2026';
   if(!badge)return;
   if(connected){
-    badge.textContent='동기화 연결됨';
+    badge.textContent=isGasConnected()?'클라우드 연결됨':'동기화 연결됨';
     badge.className='badge';
     $('#gdriveConnect').hidden=true;
     $('#gdriveSyncNow').hidden=false;
@@ -48,6 +49,8 @@ function updateGDriveUI(){
     $('#gdriveDisconnect').hidden=true;
     if(meta.lastSyncedAt){
       $('#gdriveStatus').textContent=`이전 동기화 기록: ${new Date(meta.lastSyncedAt).toLocaleString('ko-KR')}`;
+    }else{
+      $('#gdriveStatus').textContent='';
     }
   }
 }
@@ -324,14 +327,17 @@ $('#parseOcr').onclick=showCandidates;$('#applyName').onclick=()=>{if($('#ocrNam
 $('#ocr').onclick=async()=>{if(!photo){toast('제품 사진을 먼저 선택해 주세요.');return}busy=true;controls();$('#ocrPanel').hidden=false;$('#ocrProgress').value=0;$('#ocrText').value='';$('#dateCandidates').innerHTML='';$('#paoCandidates').innerHTML='';$('#ocrName').value='';$('#ocrStatus').textContent='최초 사용 시 엔진·언어 모델을 다운로드합니다. 잠시 기다려 주세요…';let worker;try{await loadEngine();worker=await Tesseract.createWorker('kor+eng',1,{logger:m=>{$('#ocrProgress').value=Math.round((m.progress||0)*100);const labels={'loading tesseract core':'OCR 엔진 다운로드','initializing tesseract':'엔진 준비','loading language traineddata':'한국어·영어 모델 다운로드','initializing api':'언어 모델 준비','recognizing text':'사진의 글자 인식'};$('#ocrStatus').textContent=(labels[m.status]||'OCR 준비 중')+(m.progress===undefined?'':` · ${Math.round(m.progress*100)}%`);}});const {data}=await worker.recognize(ocrPhoto||photo);$('#ocrText').value=data.text;$('#ocrName').value=(data.text.split('\n').map(x=>x.trim()).find(x=>x.length>2&&!/\d|EXP|MFG|제조|사용기한/i.test(x))||'').slice(0,120);showCandidates();$('#ocrStatus').textContent=data.text.trim()?'인식 완료 · 원문과 사진을 비교한 후 적용해 주세요.':'글자를 찾지 못했어요. 밝은 곳에서 라벨을 가까이 찍거나 수동으로 입력해 주세요.';}catch(e){$('#ocrStatus').textContent='OCR을 완료하지 못했어요. 인터넷 연결과 사진 형식을 확인하고 다시 시도하거나 수동 입력해 주세요. '+e.message;}finally{if(worker)await worker.terminate().catch(()=>{});busy=false;controls()}};
 $('#sample').onclick=async()=>{if(!await confirmAction('샘플을 추가할까요?','가상 제품 4개가 개별 용기로 등록됩니다. 실제 제품이 아니며 기록 보기에서 삭제할 수 있어요.'))return;try{const base={brand:'뷰티기한 샘플',category:'스킨케어',status:'사용 중',opened:'',months:null,memo:'사용법을 살펴보기 위한 가상 샘플',photo:''},shift=n=>{const d=new Date(today()+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};await write([['[샘플] 수분 크림',shift(14)],['[샘플] 선크림',shift(-5)],['[샘플] 립 틴트',''],['[샘플] 클렌징 밀크',shift(100)]].map(([name,expiry],i)=>({...base,name,expiry,category:categories[i],id:crypto.randomUUID(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()})));await refresh();triggerAutoSync();toast('가상 샘플 4개를 추가했어요.')}catch(e){toast('샘플 저장 실패: '+e.message)}};
 for(const s of ['#backupOpen','#backupInline'])$(s).onclick=()=>{updateGDriveUI();$('#backupDialog').showModal();};
-$('#gdriveClientId')?.addEventListener('input',e=>setStoredClientId(e.target.value));
+$('#gasUrlInput')?.addEventListener('input',e=>setGasUrl(e.target.value));
+$('#gasTokenInput')?.addEventListener('input',e=>setGasToken(e.target.value));
 $('#gdriveConnect')?.addEventListener('click',async()=>{
-  const cId=$('#gdriveClientId').value.trim();
-  if(!cId){toast('Google OAuth 클라이언트 ID를 입력해 주세요.');$('#gdriveClientId').focus();return;}
+  const url=$('#gasUrlInput')?.value.trim()||'';
+  const tok=$('#gasTokenInput')?.value.trim()||'beauty-secret-2026';
+  if(!url){toast('Apps Script 웹 앱 URL을 입력해 주세요.');$('#gasUrlInput')?.focus();return;}
+  setGasUrl(url);
+  setGasToken(tok);
   try{
-    $('#gdriveStatus').textContent='구글 로그인 창을 여는 중…';
+    $('#gdriveStatus').textContent='구글 클라우드와 연결 및 동기화 확인 중…';
     $('#gdriveStatus').classList.remove('is-error');
-    await initGoogleAuth(cId);
     await runDriveSync(false);
   }catch(err){
     $('#gdriveStatus').textContent='연결 실패: '+err.message;
@@ -340,9 +346,10 @@ $('#gdriveConnect')?.addEventListener('click',async()=>{
 });
 $('#gdriveSyncNow')?.addEventListener('click',()=>runDriveSync(false));
 $('#gdriveDisconnect')?.addEventListener('click',()=>{
+  setGasUrl('');
   disconnectGoogle();
   updateGDriveUI();
-  toast('구글 드라이브 연결을 해제했어요.');
+  toast('구글 클라우드 동기화 연결을 해제했어요.');
 });
 $('#export').onclick=async()=>{try{const data={app:'beauty-deadline',version:1,exportedAt:new Date().toISOString(),products:await all()},url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=`뷰티기한-백업-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);$('#backupStatus').textContent='백업 다운로드를 요청했어요. 다운로드 폴더를 확인하세요.';}catch(e){$('#backupStatus').textContent='백업 실패: '+e.message}};
 $('#importFile').onchange=async e=>{restoreItems=null;$('#restorePreview').hidden=true;try{const file=e.target.files[0];if(!file)return;if(file.size>100000000)throw Error('100MB 이하의 백업만 지원합니다.');const data=JSON.parse(await file.text());if(data.app!=='beauty-deadline'||data.version!==1||!Array.isArray(data.products)||data.products.length>2000)throw Error('뷰티기한 버전 1 백업인지 확인해 주세요.');const ids=new Set();restoreItems=data.products.map(p=>{validateProduct(p);if(ids.has(p.id))throw Error('중복 ID가 있는 백업입니다.');ids.add(p.id);if(typeof p.createdAt!=='string'||typeof p.updatedAt!=='string'||isNaN(Date.parse(p.createdAt))||isNaN(Date.parse(p.updatedAt)))throw Error('등록 시각이 올바르지 않습니다.');return Object.fromEntries(['id','name','brand','category','status','expiry','opened','months','memo','photo','createdAt','updatedAt'].map(k=>[k,p[k]??(k==='months'?null:'')]))});const overlap=restoreItems.filter(p=>products.some(q=>q.id===p.id)).length;$('#restoreInfo').textContent=`총 ${restoreItems.length}개 · 새로 추가 ${restoreItems.length-overlap}개 · 같은 ID 덮어쓰기 ${overlap}개`;$('#restorePreview').hidden=false;$('#backupStatus').textContent='내용을 확인한 후 복원 버튼을 눌러 주세요.';}catch(e){restoreItems=null;$('#backupStatus').textContent='복원 파일을 읽지 못했어요. '+e.message}};
