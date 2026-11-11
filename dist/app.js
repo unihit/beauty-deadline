@@ -30,7 +30,7 @@ async function runDriveSync(silent=false){
 function updateGDriveUI(){
   const meta=getSyncMeta(),connected=isConnected(),badge=$('#gdriveBadge');
   if($('#gasUrlInput'))$('#gasUrlInput').value=meta.gasUrl||'';
-  if($('#gasTokenInput'))$('#gasTokenInput').value=meta.gasToken||'beauty-secret-2026';
+  if($('#gasTokenInput'))$('#gasTokenInput').value=meta.gasToken||'';
   if(!badge)return;
   if(connected){
     badge.textContent=isGasConnected()?'클라우드 연결됨':'동기화 연결됨';
@@ -331,8 +331,9 @@ $('#gasUrlInput')?.addEventListener('input',e=>setGasUrl(e.target.value));
 $('#gasTokenInput')?.addEventListener('input',e=>setGasToken(e.target.value));
 $('#gdriveConnect')?.addEventListener('click',async()=>{
   const url=$('#gasUrlInput')?.value.trim()||'';
-  const tok=$('#gasTokenInput')?.value.trim()||'beauty-secret-2026';
+  const tok=$('#gasTokenInput')?.value.trim()||'';
   if(!url){toast('Apps Script 웹 앱 URL을 입력해 주세요.');$('#gasUrlInput')?.focus();return;}
+  if(!tok){toast('API 보안 토큰을 입력해 주세요.');$('#gasTokenInput')?.focus();return;}
   setGasUrl(url);
   setGasToken(tok);
   try{

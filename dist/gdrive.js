@@ -18,7 +18,7 @@ export function setGasUrl(url) {
 }
 
 export function getGasToken() {
-  return localStorage.getItem('beauty_gas_token') || 'beauty-secret-2026';
+  return localStorage.getItem('beauty_gas_token') || '';
 }
 
 export function setGasToken(tok) {

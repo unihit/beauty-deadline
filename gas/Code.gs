@@ -7,7 +7,6 @@
 
 const FOLDER_NAME = '뷰티기한';
 const FILE_NAME = 'beauty-deadline-data.json';
-const DEFAULT_API_TOKEN = 'beauty-secret-2026';
 
 const VALID_CATEGORIES = ['스킨케어', '메이크업', '선케어', '클렌징', '헤어·바디', '향수', '기타'];
 const VALID_STATUSES = ['미개봉', '사용 중', '사용 완료', '폐기'];
@@ -18,12 +17,14 @@ const VALID_STATUSES = ['미개봉', '사용 중', '사용 완료', '폐기'];
 
 function getApiToken() {
   const prop = PropertiesService.getScriptProperties().getProperty('API_TOKEN');
-  return prop || DEFAULT_API_TOKEN;
+  return prop ? prop.trim() : null;
 }
 
 function isAuthorized(token) {
   if (!token || typeof token !== 'string') return false;
-  return token.trim() === getApiToken();
+  const expected = getApiToken();
+  if (!expected) return false;
+  return token.trim() === expected;
 }
 
 // --------------------------------------------------------------------------
@@ -284,6 +285,21 @@ function doPost(e) {
       }
       if (payload.memo !== undefined) product.memo = String(payload.memo).trim().slice(0, 10000);
 
+      if (payload.photo !== undefined) {
+        let photo = String(payload.photo || '').trim();
+        if (photo) {
+          if (!photo.startsWith('data:image/')) {
+            return jsonResponse({ success: false, error: '사진(photo)은 data:image/ 형식의 base64 데이터만 허용됩니다.' });
+          }
+          if (photo.length > 2800000) {
+            return jsonResponse({ success: false, error: '사진 용량이 너무 큽니다. (최대 2MB 이하 권장)' });
+          }
+          product.photo = photo;
+        } else {
+          product.photo = '';
+        }
+      }
+
       product.updatedAt = nowStr;
       data.syncedAt = nowStr;
       saveData(data);
@@ -416,7 +432,8 @@ function doPost(e) {
     // (7) 웹/모바일 앱과의 실시간 양방향 동기화 (sync)
     // ------------------------------------------------------------------------
     if (action === 'sync') {
-      const clientProducts = Array.isArray(payload.products) ? payload.products : [];
+      const rawClientProducts = Array.isArray(payload.products) ? payload.products : [];
+      const clientProducts = rawClientProducts.map(sanitizeProduct).filter(Boolean);
       const clientDeleted = (typeof payload.deletedIds === 'object' && payload.deletedIds) ? payload.deletedIds : {};
       const readOnlyPull = Boolean(payload.readOnlyPull);
 
@@ -535,9 +552,53 @@ function getOrCreateData() {
   return {
     app: 'beauty-deadline',
     version: 2,
-    syncedAt: new Date().toISOString(),
+    syncedAt: null,
     deletedIds: {},
     products: []
+  };
+}
+
+function sanitizeProduct(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const name = String(raw.name || '').trim().slice(0, 120);
+  if (!name) return null;
+
+  const id = (typeof raw.id === 'string' && raw.id.trim()) ? raw.id.trim() : Utilities.getUuid();
+  const brand = String(raw.brand || '').trim().slice(0, 120);
+  const category = VALID_CATEGORIES.includes(raw.category) ? raw.category : '기타';
+  const status = VALID_STATUSES.includes(raw.status) ? raw.status : '미개봉';
+  const expiry = (raw.expiry && isValidDateString(raw.expiry)) ? String(raw.expiry).trim() : '';
+  const opened = (raw.opened && isValidDateString(raw.opened)) ? String(raw.opened).trim() : '';
+
+  let months = null;
+  if (raw.months !== undefined && raw.months !== null && raw.months !== '') {
+    const m = parseInt(raw.months, 10);
+    if (!isNaN(m) && m >= 1 && m <= 120) months = m;
+  }
+
+  let photo = '';
+  if (typeof raw.photo === 'string' && raw.photo.startsWith('data:image/') && raw.photo.length <= 2800000) {
+    photo = raw.photo;
+  }
+
+  const memo = String(raw.memo || '').trim().slice(0, 10000);
+  const nowStr = new Date().toISOString();
+  const createdAt = (typeof raw.createdAt === 'string' && !isNaN(Date.parse(raw.createdAt))) ? raw.createdAt : nowStr;
+  const updatedAt = (typeof raw.updatedAt === 'string' && !isNaN(Date.parse(raw.updatedAt))) ? raw.updatedAt : nowStr;
+
+  return {
+    id,
+    name,
+    brand,
+    category,
+    status,
+    expiry,
+    opened,
+    months,
+    memo,
+    photo,
+    createdAt,
+    updatedAt
   };
 }
 
